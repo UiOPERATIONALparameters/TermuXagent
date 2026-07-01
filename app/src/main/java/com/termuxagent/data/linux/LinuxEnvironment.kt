@@ -191,42 +191,38 @@ class LinuxEnvironment(private val context: Context) {
             val dataTar = parseArAndExtractData(debFile, tempDir)
                 ?: throw RuntimeException("Could not find data.tar in .deb for $label")
 
-            // dataTar might be .xz compressed. Android's toybox tar doesn't
-            // support xz, so decompress with the tukaani xz library first.
-            val plainTar = if (dataTar.name.endsWith(".xz")) {
+            // dataTar might be .xz compressed. Use Apache Commons Compress
+            // for BOTH decompression AND tar extraction — it handles GNU tar
+            // format correctly, which Android's toybox tar does NOT.
+            val tarStream: java.io.InputStream = if (dataTar.name.endsWith(".xz")) {
                 _state.value = SetupState.Extracting(31, "Decompressing $label…")
-                val outFile = File(tempDir, "data.tar")
-                java.io.FileInputStream(dataTar).use { fis ->
-                    org.tukaani.xz.XZInputStream(fis).use { xzIn ->
-                        outFile.outputStream().use { out ->
-                            xzIn.copyTo(out)
-                        }
-                    }
-                }
-                outFile
+                org.tukaani.xz.XZInputStream(java.io.FileInputStream(dataTar))
+            } else if (dataTar.name.endsWith(".gz")) {
+                org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(java.io.FileInputStream(dataTar))
             } else {
-                dataTar
+                java.io.FileInputStream(dataTar)
             }
 
-            // Extract the specific file from data.tar using toybox tar
-            val proc = ProcessBuilder(
-                "/system/bin/tar", "-xf", plainTar.absolutePath,
-                "-C", tempDir.absolutePath,
-                "./$innerPath", innerPath
-            ).redirectErrorStream(true).start()
-            proc.waitFor(30, TimeUnit.SECONDS)
-
-            val extracted = File(tempDir, innerPath)
-            val altExtracted = File(tempDir, "./$innerPath")
-            val source = when {
-                extracted.exists() -> extracted
-                altExtracted.exists() -> altExtracted
-                else -> {
-                    val contents = tempDir.walkTopDown().take(20).joinToString("\n")
-                    throw RuntimeException("Could not find $innerPath in .deb. Contents:\n$contents")
+            tarStream.use { ts ->
+                org.apache.commons.compress.archivers.tar.TarArchiveInputStream(ts).use { tarIn ->
+                    var entry = tarIn.nextEntry
+                    while (entry != null) {
+                        val name = entry.name.removePrefix("./")
+                        if (name == innerPath) {
+                            outputFile.parentFile?.mkdirs()
+                            outputFile.outputStream().use { out ->
+                                tarIn.copyTo(out)
+                            }
+                            if (innerPath.contains("bin/")) {
+                                outputFile.setExecutable(true, true)
+                            }
+                            return
+                        }
+                        entry = tarIn.nextEntry
+                    }
+                    throw RuntimeException("Could not find $innerPath in .deb data.tar")
                 }
             }
-            source.copyTo(outputFile, overwrite = true)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -275,13 +271,43 @@ class LinuxEnvironment(private val context: Context) {
 
     private fun extractRootfs(archive: File) {
         rootfsDir.mkdirs()
-        val proc = ProcessBuilder("/system/bin/tar", "-xzf", archive.absolutePath, "-C", rootfsDir.absolutePath)
-            .redirectErrorStream(true)
-            .start()
-        val out = proc.inputStream.bufferedReader().readText()
-        proc.waitFor(120, TimeUnit.SECONDS)
-        if (proc.exitValue() != 0) {
-            throw RuntimeException("rootfs extraction failed: $out")
+        // Use Apache Commons Compress — toybox tar can't handle Alpine's GNU tar format
+        java.io.FileInputStream(archive).use { fis ->
+            org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(fis).use { gzIn ->
+                org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzIn).use { tarIn ->
+                    var entry = tarIn.nextEntry
+                    var count = 0
+                    while (entry != null) {
+                        val name = entry.name.removePrefix("./")
+                        val outFile = File(rootfsDir, name)
+                        if (entry.isDirectory) {
+                            outFile.mkdirs()
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            outFile.outputStream().use { out ->
+                                tarIn.copyTo(out)
+                            }
+                            // Preserve executable bit
+                            if ((entry.mode and 0b001_000_000) != 0) {
+                                outFile.setExecutable(true, false)
+                            }
+                        }
+                        // Create symlinks
+                        if (entry.isSymbolicLink) {
+                            try {
+                                val target = entry.linkName
+                                if (outFile.exists()) outFile.delete()
+                                java.nio.file.Files.createSymbolicLink(outFile.toPath(), java.io.File(target).toPath())
+                            } catch (_: Exception) { }
+                        }
+                        count++
+                        if (count % 200 == 0) {
+                            _state.value = SetupState.Extracting(60 + count / 50, "Extracting Alpine rootfs… $count files")
+                        }
+                        entry = tarIn.nextEntry
+                    }
+                }
+            }
         }
     }
 

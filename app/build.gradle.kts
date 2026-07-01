@@ -14,8 +14,8 @@ android {
         applicationId = "com.termuxagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "2.1.2"
+        versionCode = 9
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -121,6 +121,11 @@ dependencies {
     // XZ decompression — needed to extract proot from Termux's .deb packages
     // (they use data.tar.xz, which Android's toybox tar can't decompress)
     implementation("org.tukaani:xz:1.9")
+
+    // Apache Commons Compress — reliable tar extraction in pure Java.
+    // Android's toybox tar can't handle GNU tar format (which Alpine rootfs
+    // and .deb data.tar use). This eliminates an entire class of bugs.
+    implementation("org.apache.commons:commons-compress:1.26.1")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
