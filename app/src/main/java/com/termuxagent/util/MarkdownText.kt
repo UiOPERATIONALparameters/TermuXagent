@@ -400,11 +400,11 @@ private class CollectingVisitor : AbstractVisitor() {
 }
 
 private class InlineBuilder {
-    private val builder = AnnotatedString.Builder()
+    private var builder = AnnotatedString.Builder()
     private val styleStack = mutableListOf<SpanStyle>()
 
     fun reset() {
-        builder.clear()
+        builder = AnnotatedString.Builder()
         styleStack.clear()
     }
 
