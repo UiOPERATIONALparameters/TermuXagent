@@ -105,6 +105,7 @@ class Agent(
                 // Order of tool call ids as they arrived (so we can emit in order).
                 val toolOrder = mutableListOf<String>()
                 var finishReason: String? = null
+                var streamError: String? = null
 
                 client.streamChat(request).collect { ev ->
                     when (ev) {
@@ -133,10 +134,17 @@ class Agent(
                             finishReason = ev.finishReason ?: finishReason
                         }
                         is ChatStreamEvent.Error -> {
-                            emit(AgentEvent.Error(ev.message))
-                            return@flow
+                            // collect's lambda is crossinline — can't return@flow here.
+                            // Capture the error and break out after collect completes.
+                            streamError = ev.message
                         }
                     }
+                }
+
+                // If the stream errored, surface it and stop the loop.
+                streamError?.let {
+                    emit(AgentEvent.Error(it))
+                    return@flow
                 }
 
                 // Build the assistant message for the conversation.

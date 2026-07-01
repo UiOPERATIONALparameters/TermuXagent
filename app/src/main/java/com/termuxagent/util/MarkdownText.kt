@@ -88,14 +88,14 @@ fun MarkdownText(
                     Text(
                         text = renderInline("• ${block.text}"),
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
                 is MdBlock.NumberedItem -> {
                     Text(
                         text = renderInline("${block.n}. ${block.text}"),
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
                 is MdBlock.Quote -> {

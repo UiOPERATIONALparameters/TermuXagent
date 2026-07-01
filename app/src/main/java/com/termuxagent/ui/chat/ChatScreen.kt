@@ -91,7 +91,7 @@ fun ChatScreen(
                 navigationIcon = {
                     Box(
                         modifier = Modifier
-                            .padding(start = 12.dp)
+                            .padding(horizontal = 12.dp)
                             .size(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
