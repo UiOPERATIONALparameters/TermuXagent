@@ -273,7 +273,7 @@ private class CollectingVisitor : AbstractVisitor() {
 
     // Handle GFM table nodes — AbstractVisitor doesn't have visit(TableBlock)
     // so we check the node type in the generic visit method
-    override fun visit(node: org.commonmark.node.Node?) {
+    override fun visit(node: org.commonmark.node.Node) {
         if (node is org.commonmark.ext.gfm.tables.TableBlock) {
             visitTableBlock(node)
         } else {
