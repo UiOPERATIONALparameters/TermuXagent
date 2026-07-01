@@ -127,8 +127,7 @@ Provider: $provider ${if (provider == "duckduckgo") "(free, no key needed)" else
 
     private fun searchExa(query: String, numResults: Int, apiKey: String): ToolResult {
         return runCatching {
-            val bodyStr = Json.encodeToString(
-                kotlinx.serialization.json.buildJsonObject {
+            val bodyStr = kotlinx.serialization.json.buildJsonObject {
                     put("query", query)
                     put("numResults", numResults)
                     put("contents", kotlinx.serialization.json.buildJsonObject {
@@ -136,8 +135,7 @@ Provider: $provider ${if (provider == "duckduckgo") "(free, no key needed)" else
                             put("maxCharacters", 500)
                         })
                     })
-                }
-            )
+                }.toString()
             val req = Request.Builder()
                 .url("https://api.exa.ai/search")
                 .header("x-api-key", apiKey)
@@ -150,7 +148,7 @@ Provider: $provider ${if (provider == "duckduckgo") "(free, no key needed)" else
                     return@runCatching ToolResult(false, "Exa returned HTTP ${resp.code}: $errBody")
                 }
                 val respBody = resp.body?.string() ?: ""
-                val respJson = json.parseToJsonElement(respBody).jsonObject
+                val respJson = Json.parseToJsonElement(respBody).jsonObject
                 val resultsArr = respJson["results"]?.jsonArray ?: emptyList()
                 val results = resultsArr.mapNotNull { el ->
                     val obj = el.jsonObject
@@ -170,12 +168,10 @@ Provider: $provider ${if (provider == "duckduckgo") "(free, no key needed)" else
 
     private fun searchFirecrawl(query: String, numResults: Int, apiKey: String): ToolResult {
         return runCatching {
-            val bodyStr = Json.encodeToString(
-                kotlinx.serialization.json.buildJsonObject {
+            val bodyStr = kotlinx.serialization.json.buildJsonObject {
                     put("query", query)
                     put("limit", numResults)
-                }
-            )
+                }.toString()
             val req = Request.Builder()
                 .url("https://api.firecrawl.dev/v1/search")
                 .header("Authorization", "Bearer $apiKey")
@@ -188,7 +184,7 @@ Provider: $provider ${if (provider == "duckduckgo") "(free, no key needed)" else
                     return@runCatching ToolResult(false, "Firecrawl returned HTTP ${resp.code}: $errBody")
                 }
                 val respBody = resp.body?.string() ?: ""
-                val respJson = json.parseToJsonElement(respBody).jsonObject
+                val respJson = Json.parseToJsonElement(respBody).jsonObject
                 val dataArr = respJson["data"]?.jsonArray ?: emptyList()
                 val results = dataArr.mapNotNull { el ->
                     val obj = el.jsonObject
