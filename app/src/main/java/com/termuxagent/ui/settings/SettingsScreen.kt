@@ -434,7 +434,7 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedTextField(
-                                value = e.sshPort.toString(),
+                                value = s.sshPort.toString(),
                                 onValueChange = { v -> v.toIntOrNull()?.let { vm.setSshPort(it) } },
                                 label = { Text("Port") },
                                 singleLine = true,
