@@ -124,7 +124,7 @@ private fun MarkdownBlocks(document: org.commonmark.node.Node) {
                 }
             }
             is MdBlock.BulletItem -> {
-                Row(modifier = Modifier.padding(start = 4.dp, vertical = 1.dp)) {
+                Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) {
                     Text("•", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
@@ -135,7 +135,7 @@ private fun MarkdownBlocks(document: org.commonmark.node.Node) {
                 }
             }
             is MdBlock.NumberedItem -> {
-                Row(modifier = Modifier.padding(start = 4.dp, vertical = 1.dp)) {
+                Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) {
                     Text("${block.n}.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
