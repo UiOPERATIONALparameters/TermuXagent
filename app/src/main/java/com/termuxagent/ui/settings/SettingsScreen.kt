@@ -399,6 +399,7 @@ fun SettingsScreen(
             // ── Linux Environment ─────────────────────────────────────────
             item { SectionTitle("Linux Environment") }
             item {
+                val linuxState by vm.linuxState.collectAsState()
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -408,19 +409,66 @@ fun SettingsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Use Linux environment", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
                             Text(
-                                "Runs shell commands inside Alpine Linux via PRoot. The AI gets apk, python3, nodejs, ruby, gcc, git, etc.",
+                                "Gives the AI a real Alpine Linux with apk/pip/npm. Downloads ~15MB on first enable.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(checked = s.useLinuxEnv, onCheckedChange = vm::setUseLinuxEnv)
                     }
-                    if (s.useLinuxEnv) {
-                        Text(
-                            "Requires Termux with 'pkg install proot'. Install Termux from F-Droid, then run that command. The app detects it automatically.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                    // Show setup state
+                    when (linuxState) {
+                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.NotStarted -> {
+                            if (s.useLinuxEnv) {
+                                Text(
+                                    "Toggle is on but setup hasn't started. Tap 'Set up now'.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                androidx.compose.material3.TextButton(onClick = { vm.retryLinuxSetup() }) {
+                                    Text("Set up now")
+                                }
+                            }
+                        }
+                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Downloading -> {
+                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Downloading
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Text(st.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Extracting -> {
+                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Extracting
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Text(st.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Ready -> {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    "Linux environment ready. The AI has apk, python3 (after 'apk add python3'), bash, etc.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            androidx.compose.material3.TextButton(onClick = { vm.resetLinuxEnv() }) {
+                                Text("Reset Linux env")
+                            }
+                        }
+                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Failed -> {
+                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Failed
+                            Text(
+                                "Setup failed: ${st.error}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            androidx.compose.material3.TextButton(onClick = { vm.retryLinuxSetup() }) {
+                                Text("Retry setup")
+                            }
+                        }
                     }
                 }
             }
@@ -474,7 +522,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("AetherAgent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("TermuXagent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                             style = MaterialTheme.typography.bodySmall,

@@ -37,7 +37,9 @@ data class ChatUiState(
     val needsConfig: Boolean = false,
     val currentSessionId: String? = null,
     val sessions: List<SessionStore.SessionMeta> = emptyList(),
-    val showSessionList: Boolean = false
+    val showSessionList: Boolean = false,
+    val linuxReady: Boolean = false,
+    val linuxSetupProgress: String? = null
 )
 
 class ChatViewModel(private val context: Context) : ViewModel() {
@@ -48,13 +50,37 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private var runJob: Job? = null
     private var saveJob: Job? = null
     private val sessionStore = SessionStore(context)
-    private val linuxEnvironment = com.termuxagent.data.linux.LinuxEnvironment(context)
+    val linuxEnvironment = com.termuxagent.data.linux.LinuxEnvironment(context)
 
     init {
         // Observe settings continuously.
         viewModelScope.launch {
             SettingsStore.flow(context).collect { s ->
                 _state.update { it.copy(settings = s, needsConfig = !s.isConfigured) }
+                // If Linux env is enabled, make sure it's set up.
+                if (s.useLinuxEnv && linuxEnvironment.isReady) {
+                    _state.update { it.copy(linuxReady = true) }
+                }
+            }
+        }
+        // Observe Linux env setup state.
+        viewModelScope.launch {
+            linuxEnvironment.state.collect { st ->
+                _state.update {
+                    it.copy(
+                        linuxReady = st is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Ready,
+                        linuxSetupProgress = when (st) {
+                            is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Downloading -> st.message
+                            is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Extracting -> st.message
+                            is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Failed -> "Linux setup failed: ${st.error}"
+                            else -> null
+                        }
+                    )
+                }
+                // If setup just completed, notify.
+                if (st is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Ready) {
+                    _state.update { it.copy(linuxReady = true) }
+                }
             }
         }
         // Load the most recent session (or start fresh).
@@ -87,6 +113,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun reloadSettings() { /* no-op: observed continuously */ }
+
+    fun setupLinuxEnv() {
+        if (linuxEnvironment.isReady) {
+            _state.update { it.copy(linuxReady = true) }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(linuxSetupProgress = "Starting Linux setup…") }
+            val ok = linuxEnvironment.setup()
+            if (!ok) {
+                _state.update { it.copy(linuxSetupProgress = null) }
+            }
+        }
+    }
 
     fun toggleSessionList() {
         _state.update { it.copy(showSessionList = !it.showSessionList) }
@@ -195,6 +235,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         if (!current.settings.isConfigured) {
             _state.update { it.copy(error = "Add your API key, base URL, and model in Settings first.") }
             return
+        }
+        // If Linux env is enabled but not set up, start setup now.
+        if (current.settings.useLinuxEnv && !linuxEnvironment.isReady) {
+            setupLinuxEnv()
         }
         // Append the user message immediately.
         val userMsg = UiMessage.User(text = text.trim())

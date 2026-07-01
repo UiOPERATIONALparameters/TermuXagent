@@ -57,9 +57,9 @@ jobs:
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
           if [ -z "$APK" ]; then echo "No APK found"; exit 1; fi
           echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          cp "$APK" "AetherAgent-${GITHUB_REF_NAME//\//-}.apk"
-          echo "friendly=AetherAgent-${GITHUB_REF_NAME//\//-}.apk" >> $GITHUB_OUTPUT
-          ls -la AetherAgent-*.apk
+          cp "$APK" "TermuXagent-${GITHUB_REF_NAME//\//-}.apk"
+          echo "friendly=TermuXagent-${GITHUB_REF_NAME//\//-}.apk" >> $GITHUB_OUTPUT
+          ls -la TermuXagent-*.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -73,9 +73,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: AetherAgent (latest build)
+          name: TermuXagent (latest build)
           body: |
-            # AetherAgent — latest build
+            # TermuXagent — latest build
 
             Built from commit `${{ github.sha }}` on `${{ github.ref_name }}`.
 
@@ -85,7 +85,7 @@ jobs:
             3. Tap the file to install.
 
             ## First run
-            1. Open AetherAgent.
+            1. Open TermuXagent.
             2. Tap ⚙️ → Settings.
             3. Enter API key + base URL, pick a model.
             4. (Optional) Enable Linux Environment — requires Termux + `pkg install proot`.
@@ -95,7 +95,7 @@ jobs:
             ## For Linux env (maximum power)
             1. Install [Termux from F-Droid](https://f-droid.org/packages/com.termux/).
             2. In Termux: `pkg install proot`
-            3. In AetherAgent Settings → Linux Environment → toggle ON.
+            3. In TermuXagent Settings → Linux Environment → toggle ON.
             4. The AI can now `apk add python3 nodejs ruby gcc git` and run anything.
           files: ${{ steps.apk.outputs.friendly }}
           prerelease: false

@@ -144,7 +144,30 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setDynamicColor(v: Boolean) = updateImmediate { it.copy(dynamicColor = v) }
     fun setWebSearchEnabled(v: Boolean) = updateImmediate { it.copy(webSearchEnabled = v) }
     fun setWebSearchProvider(v: String) = updateImmediate { it.copy(webSearchProvider = v) }
-    fun setUseLinuxEnv(v: Boolean) = updateImmediate { it.copy(useLinuxEnv = v) }
+
+    private val linuxEnvironment = com.termuxagent.data.linux.LinuxEnvironment(context)
+    val linuxState = linuxEnvironment.state
+
+    fun setUseLinuxEnv(v: Boolean) {
+        updateImmediate { it.copy(useLinuxEnv = v) }
+        if (v && !linuxEnvironment.isReady) {
+            viewModelScope.launch {
+                linuxEnvironment.setup()
+            }
+        }
+    }
+
+    fun resetLinuxEnv() {
+        viewModelScope.launch {
+            linuxEnvironment.reset()
+        }
+    }
+
+    fun retryLinuxSetup() {
+        viewModelScope.launch {
+            linuxEnvironment.setup()
+        }
+    }
 
     private fun updateImmediate(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { SettingsStore.update(context, transform) }

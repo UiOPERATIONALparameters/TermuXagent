@@ -3,15 +3,11 @@ package com.termuxagent.ui.chat.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,6 +33,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
+/**
+ * Chat composer bar. The caller is responsible for applying `imePadding()`
+ * so the bar is pushed above the keyboard. This component adds
+ * `navigationBarsPadding()` internally for the case when the keyboard is
+ * closed (so the bar isn't hidden behind the nav bar).
+ *
+ * When the keyboard IS open, `imePadding()` (applied by the caller) already
+ * accounts for the keyboard height. `navigationBarsPadding()` adds 0 in that
+ * case because IME insets consume the nav bar area. This avoids the
+ * double-padding gap.
+ */
 @Composable
 fun ComposerBar(
     isRunning: Boolean,
@@ -49,7 +56,7 @@ fun ComposerBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
+            .navigationBarsPadding(),
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp
     ) {
@@ -65,7 +72,7 @@ fun ComposerBar(
                 onValueChange = { text = it },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 48.dp, max = 180.dp),
+                    .heightIn(min = 48.dp, max = 160.dp),
                 placeholder = {
                     Text(
                         if (isRunning) "Agent is working…" else "Ask anything…",
@@ -88,7 +95,7 @@ fun ComposerBar(
                         text = ""
                     }
                 }),
-                maxLines = 6
+                maxLines = 5
             )
             if (isRunning) {
                 IconButton(

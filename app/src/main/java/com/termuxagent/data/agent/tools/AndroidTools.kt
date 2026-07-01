@@ -13,7 +13,7 @@ import java.io.File
 /**
  * Holds the application Context needed by tools that touch the Android
  * framework (clipboard, share intents, browser). Set once at app start by
- * [com.termuxagent.AetherAgentApp].
+ * [com.termuxagent.TermuXagentApp].
  */
 object AndroidContext {
     @Volatile private var ctx: Context? = null
@@ -36,7 +36,7 @@ class CopyClipboardTool : AgentTool {
     override suspend fun invoke(args: JsonObject): ToolResult {
         val text = args["text"]?.jsonPrimitive?.content
             ?: return ToolResult(false, "Missing 'text'.")
-        val label = args["label"]?.jsonPrimitive?.content ?: "AetherAgent"
+        val label = args["label"]?.jsonPrimitive?.content ?: "TermuXagent"
         return runCatching {
             val ctx = AndroidContext.get()
             val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -161,44 +161,70 @@ class ListInterpretersTool : AgentTool {
             "lua -v",
             "php --version",
             "perl --version",
-            "sh --version",
-            "toybox",
-            "bc --version",
+            "gcc --version",
+            "g++ --version",
+            "make --version",
+            "cmake --version",
             "git --version",
             "curl --version",
             "wget --version",
-            "ssh -V"
+            "ssh -V",
+            "rustc --version",
+            "cargo --version",
+            "go version",
+            "java -version",
+            "sh --version",
+            "toybox",
+            "bc --version",
+            "jq --version",
+            "sqlite3 --version"
         )
+
+        // Build PATH: system PATH + Termux bin (if installed)
+        val termuxBin = "/data/data/com.termux/files/usr/bin"
+        val systemPath = System.getenv("PATH") ?: ""
+        val path = if (java.io.File(termuxBin).exists()) "$termuxBin:$systemPath" else systemPath
+
         val sb = StringBuilder()
         sb.appendLine("== Environment ==")
-        sb.appendLine("PATH: ${System.getenv("PATH") ?: "(unset)"}")
-        sb.appendLine("ANDROID_HOME: ${System.getenv("ANDROID_HOME") ?: "(unset)"}")
+        sb.appendLine("PATH: $path")
         sb.appendLine("HOME: ${System.getenv("HOME") ?: "(unset)"}")
+        sb.appendLine("ANDROID_HOME: ${System.getenv("ANDROID_HOME") ?: "(unset)"}")
+        sb.appendLine("Termux installed: ${java.io.File(termuxBin).exists()}")
         sb.appendLine()
         sb.appendLine("== Available runtimes ==")
+
+        var foundAny = false
         for (probe in probes) {
             val bin = probe.substringBefore(' ')
+            // Check with extended PATH
             val found = runCatching {
-                val proc = ProcessBuilder("/system/bin/sh", "-c", "command -v $bin 2>/dev/null")
+                val proc = ProcessBuilder("/system/bin/sh", "-c", "export PATH='$path'; command -v $bin 2>/dev/null")
                     .redirectErrorStream(true)
                     .start()
-                proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+                proc.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
                 val out = proc.inputStream.bufferedReader().readText().trim()
                 out.isNotBlank()
             }.getOrDefault(false)
             if (found) {
+                foundAny = true
                 val version = runCatching {
-                    val proc = ProcessBuilder("/system/bin/sh", "-c", probe)
+                    val proc = ProcessBuilder("/system/bin/sh", "-c", "export PATH='$path'; $probe 2>&1")
                         .redirectErrorStream(true)
                         .start()
-                    proc.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+                    proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
                     proc.inputStream.bufferedReader().readText().trim().take(120)
                 }.getOrDefault("(version unavailable)")
                 sb.appendLine("✓ $bin -> $version")
             }
         }
+        if (!foundAny) {
+            sb.appendLine("(no interpreters found beyond toybox)")
+        }
         sb.appendLine()
-        sb.appendLine("Tip: install Python/Node/Ruby via Termux (F-Droid) to extend what you can run.")
+        sb.appendLine("Note: If the Linux Environment is enabled in Settings, you have a full")
+        sb.appendLine("Alpine Linux with apk package manager. Use 'apk add python3 nodejs ruby")
+        sb.appendLine("gcc git curl' to install anything. If it's not enabled, enable it in Settings.")
         return ToolResult(true, sb.toString(), meta = mapOf("type" to "env_info"))
     }
 }

@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -120,11 +117,12 @@ fun TerminalScreen(
             }
         }
 
-        // Input bar
+        // Input bar — imePadding pushes it above the keyboard
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
+                .imePadding()
+                .navigationBarsPadding(),
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 0.dp
         ) {

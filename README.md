@@ -1,8 +1,8 @@
-# AetherAgent
+# TermuXagent
 
 > Your AI, its own computer, in your pocket.
 
-AetherAgent is a BYOK (Bring Your Own Key) AI agent for Android that gives any
+TermuXagent is a BYOK (Bring Your Own Key) AI agent for Android that gives any
 OpenAI-compatible model **its own Linux computer** — a full Alpine Linux
 environment via PRoot, no root required. The agent can install packages with
 `apk`, run Python/Node/Ruby/GCC, write and execute code, search the web, and
@@ -56,7 +56,7 @@ Built with Kotlin + Jetpack Compose + Material 3. Pure e-ink monochrome UI.
 ### 📁 Workspace
 - Persistent file browser with in-app editor.
 - Download/share button on every file.
-- Files at `Android/data/com.aetheragent/files/workspace`.
+- Files at `Android/data/com.termuxagent/files/workspace`.
 
 ### 🎨 E-ink UI
 - Pure black/white/gray monochrome.
@@ -71,7 +71,7 @@ Grab the latest APK from the [Releases page](../../releases/latest), allow
 
 ## First run
 
-1. Open AetherAgent.
+1. Open TermuXagent.
 2. Tap ⚙️ → **Settings**.
 3. Enter **API Key** + **Base URL** → pick a **Model** from the auto-fetched list.
 4. (Optional) Enable **Linux Environment** — requires Termux + `pkg install proot`.
@@ -82,7 +82,7 @@ Grab the latest APK from the [Releases page](../../releases/latest), allow
 
 1. Install [Termux from F-Droid](https://f-droid.org/packages/com.termux/) (not Play Store).
 2. Open Termux, run: `pkg install proot`
-3. In AetherAgent → Settings → Linux Environment → toggle ON.
+3. In TermuXagent → Settings → Linux Environment → toggle ON.
 4. The agent can now `apk add python3 nodejs ruby gcc git` and run anything.
 
 ## Try these prompts
@@ -115,8 +115,8 @@ ui/
 ## Build from source
 
 ```bash
-git clone https://github.com/UiOPERATIONALparameters/AetherAgent.git
-cd AetherAgent
+git clone https://github.com/UiOPERATIONALparameters/TermuXagent.git
+cd TermuXagent
 ./gradlew assembleRelease
 ```
 

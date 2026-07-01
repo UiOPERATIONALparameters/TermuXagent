@@ -27,7 +27,7 @@ object WorkspaceManager {
         if (!readme.exists()) {
             readme.writeText(
                 """
-                # AetherAgent Workspace
+                # TermuXagent Workspace
 
                 This is your AI's persistent workspace. Anything you ask the agent to build,
                 write, or download will live here. Files persist across app restarts.

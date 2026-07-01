@@ -90,7 +90,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            "AetherAgent",
+                            "TermuXagent",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -116,36 +116,43 @@ fun ChatScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        },
-        bottomBar = {
+        }
+    ) { inner ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner)
+        ) {
+            // Messages area takes all remaining space
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (state.messages.isEmpty()) {
+                    EmptyChatHint(
+                        needsConfig = state.needsConfig,
+                        onOpenSettings = onOpenSettings,
+                        onOpenWorkspace = onOpenWorkspace,
+                        onQuickPrompt = { vm.send(it) }
+                    )
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(state.messages, key = { it.id }) { msg ->
+                            MessageBubble(message = msg)
+                        }
+                        item { Spacer(Modifier.size(8.dp)) }
+                    }
+                }
+            }
+            // Composer at the bottom — imePadding pushes it above the keyboard
             ComposerBar(
                 isRunning = state.isRunning,
                 onSend = { vm.send(it) },
-                onStop = { vm.stop() }
+                onStop = { vm.stop() },
+                modifier = Modifier.imePadding()
             )
-        }
-    ) { inner ->
-        Box(modifier = Modifier.fillMaxSize().padding(inner)) {
-            if (state.messages.isEmpty()) {
-                EmptyChatHint(
-                    needsConfig = state.needsConfig,
-                    onOpenSettings = onOpenSettings,
-                    onOpenWorkspace = onOpenWorkspace,
-                    onQuickPrompt = { vm.send(it) }
-                )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    items(state.messages, key = { it.id }) { msg ->
-                        MessageBubble(message = msg)
-                    }
-                    item { Spacer(Modifier.size(8.dp)) }
-                }
-            }
         }
     }
 
@@ -279,7 +286,7 @@ private fun EmptyChatHint(
         }
         item {
             Text(
-                "AetherAgent",
+                "TermuXagent",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground
