@@ -22,6 +22,7 @@ import com.termuxagent.data.agent.tools.WebSearchTool
 import com.termuxagent.data.agent.tools.WriteFileTool
 import com.termuxagent.data.api.ToolDef
 import com.termuxagent.data.api.ToolFunction
+import com.termuxagent.data.linux.LinuxEnvironment
 import com.termuxagent.data.settings.AppSettings
 import com.termuxagent.data.workspace.WorkspaceManager
 import kotlinx.serialization.json.JsonElement
@@ -33,9 +34,9 @@ import kotlinx.serialization.json.buildJsonObject
  * Holds the tool implementations and produces the OpenAI-style `tools` array
  * to send with chat requests.
  */
-class ToolRegistry(ws: WorkspaceManager, settings: AppSettings) {
+class ToolRegistry(ws: WorkspaceManager, settings: AppSettings, linuxEnv: LinuxEnvironment? = null) {
     private val tools: List<AgentTool> = buildList {
-        add(ShellTool(ws))
+        add(ShellTool(ws, linuxEnv))
         add(ReadFileTool(ws))
         add(WriteFileTool(ws))
         add(EditFileTool(ws))

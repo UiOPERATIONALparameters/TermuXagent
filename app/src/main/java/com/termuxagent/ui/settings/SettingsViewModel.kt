@@ -144,6 +144,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setDynamicColor(v: Boolean) = updateImmediate { it.copy(dynamicColor = v) }
     fun setWebSearchEnabled(v: Boolean) = updateImmediate { it.copy(webSearchEnabled = v) }
     fun setWebSearchProvider(v: String) = updateImmediate { it.copy(webSearchProvider = v) }
+    fun setUseLinuxEnv(v: Boolean) = updateImmediate { it.copy(useLinuxEnv = v) }
 
     private fun updateImmediate(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { SettingsStore.update(context, transform) }

@@ -13,7 +13,7 @@ import java.io.File
 /**
  * Holds the application Context needed by tools that touch the Android
  * framework (clipboard, share intents, browser). Set once at app start by
- * [com.termuxagent.TermuXagentApp].
+ * [com.termuxagent.AetherAgentApp].
  */
 object AndroidContext {
     @Volatile private var ctx: Context? = null
@@ -36,7 +36,7 @@ class CopyClipboardTool : AgentTool {
     override suspend fun invoke(args: JsonObject): ToolResult {
         val text = args["text"]?.jsonPrimitive?.content
             ?: return ToolResult(false, "Missing 'text'.")
-        val label = args["label"]?.jsonPrimitive?.content ?: "TermuXagent"
+        val label = args["label"]?.jsonPrimitive?.content ?: "AetherAgent"
         return runCatching {
             val ctx = AndroidContext.get()
             val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager

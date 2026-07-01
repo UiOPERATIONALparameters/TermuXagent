@@ -48,6 +48,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private var runJob: Job? = null
     private var saveJob: Job? = null
     private val sessionStore = SessionStore(context)
+    private val linuxEnvironment = com.termuxagent.data.linux.LinuxEnvironment(context)
 
     init {
         // Observe settings continuously.
@@ -210,7 +211,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // Build the agent + run.
         val settings = current.settings
         val client = OpenAIClient(baseUrl = settings.baseUrl, apiKey = settings.apiKey)
-        val registry = ToolRegistry(WorkspaceManager, settings)
+        val linuxEnv = if (settings.useLinuxEnv) linuxEnvironment else null
+        val registry = ToolRegistry(WorkspaceManager, settings, linuxEnv)
         val agent = Agent(settings = settings, registry = registry, client = client)
         val history = (_state.value.messages.dropLast(2)) // exclude the just-added user+assistant placeholders
             .toWireFormat()

@@ -1,111 +1,139 @@
-# TermuXagent
+# AetherAgent
 
-> Your AI, your computer, in your pocket.
+> Your AI, its own computer, in your pocket.
 
-TermuXagent is a BYOK (Bring Your Own Key) AI agent for Android that gives any
-OpenAI-compatible model a real, persistent on-device workspace. The agent can
-read & write files, run shell commands, search the workspace, fetch URLs, copy
-to clipboard, share files, open URLs in the browser, and iterate autonomously
-until your task is done.
+AetherAgent is a BYOK (Bring Your Own Key) AI agent for Android that gives any
+OpenAI-compatible model **its own Linux computer** — a full Alpine Linux
+environment via PRoot, no root required. The agent can install packages with
+`apk`, run Python/Node/Ruby/GCC, write and execute code, search the web, and
+iterate autonomously until your task is done.
+
+On par with z.ai agentic mode — but on your phone, offline-capable, and
+totally private (your API key never leaves your device).
 
 Built with Kotlin + Jetpack Compose + Material 3. Pure e-ink monochrome UI.
 
-## Features (v1.1)
+## Features (v2.0)
 
-- **BYOK, OpenAI-compatible.** Point at any provider (OpenAI, OpenRouter,
-  Together, Groq, local Llamafile, Ollama with the OpenAI shim, …) by setting
-  Base URL + API key + model.
-- **Auto-fetch models.** When you enter your API key + Base URL, the app
-  fetches the list of available models from `/v1/models` and shows them in a
-  picker. Tap to choose, or type a custom name.
-- **Streaming chat.** Server-sent events; the assistant's text and tool calls
-  render live as they arrive. Typing caret + pulsing "thinking" dots.
-- **Tool-calling agent loop.** The agent calls tools, sees results, and
-  continues until it's done — up to a configurable max-iterations cap.
-- **Real workspace.** A persistent folder the agent fully controls. Files
-  survive app restarts. Browse + edit files in-app.
-- **15 tools:** `shell`, `read_file`, `write_file`, `edit_file`, `append_file`,
-  `list_dir`, `tree`, `grep`, `mkdir`, `delete`, `http_fetch`,
-  `list_interpreters` (detects python3/node/ruby/etc.), `copy_to_clipboard`,
-  `share_file` (Android share sheet), `open_url` (browser).
-- **Clean e-ink UI.** Pure black + pure white + grays only. Color reserved for
-  status icons. Rounded corners (16-24dp). Three theme modes: System / Black /
-  White. Dynamic color toggle.
-- **Quick prompts.** Empty chat shows one-tap templates (Hello world, List
-  interpreters, Workspace tour, Build a static site).
+### 🐧 Linux Environment (NEW)
+- **PRoot + Alpine Linux** — the AI gets a real Linux computer with `apk`
+  package manager. It can `apk add python3 nodejs ruby gcc git curl wget make
+  cmake` and anything else in Alpine's repos.
+- **No root required** — PRoot uses ptrace syscall interception (same approach
+  as UserLAnd, Andronix, Anlinux).
+- **Shared workspace** — the agent's workspace is bind-mounted at
+  `/root/workspace` inside Linux, so files are shared between Android and Linux.
+- **Toggle on/off** in Settings.
+
+### 🤖 Agent
+- **BYOK, OpenAI-compatible** — works with OpenAI, OpenRouter, Together, Groq,
+  Ollama, anything with `/v1/chat/completions`.
+- **Auto-fetch models** — type your API key + base URL, pick from the
+  auto-fetched model list.
+- **Streaming chat** with live tool-call cards.
+- **Tool-calling agent loop** — up to 25 iterations (configurable).
+- **17+ tools:** `shell` (Linux-powered), `read/write/edit/append_file`,
+  `list_dir`, `tree`, `grep`, `mkdir`, `delete`, `file_info`, `http_fetch`,
+  `download_url`, `list_interpreters`, `copy_to_clipboard`, `share_file`,
+  `open_url`, `web_search`, `web_read`.
+
+### 🔍 Web Search (3 providers)
+- **DuckDuckGo** — free, no API key
+- **Exa** — API key required, returns content snippets
+- **Firecrawl** — API key required
+- Toggle on/off in Settings. The AI gets `web_search` + `web_read` tools.
+
+### 💬 Chat Persistence
+- Sessions auto-save to JSON files, survive app restart.
+- Session list with new/switch/delete.
+- Auto-title from first user message.
+
+### 🖥️ Terminal Screen
+- Type shell commands directly.
+- When Linux env is on, you get a real bash shell with `apk`, `python3`, etc.
+- Command history, ANSI support.
+
+### 📁 Workspace
+- Persistent file browser with in-app editor.
+- Download/share button on every file.
+- Files at `Android/data/com.aetheragent/files/workspace`.
+
+### 🎨 E-ink UI
+- Pure black/white/gray monochrome.
+- Three theme modes: System / Black / White.
+- Dynamic color toggle (Android 12+).
+- Rounded corners, modern card-based chat.
 
 ## Install
 
 Grab the latest APK from the [Releases page](../../releases/latest), allow
-"Install unknown apps" for your browser/files app on your phone, and tap to
-install.
+"Install unknown apps" for your browser/files app, and tap to install.
 
 ## First run
 
-1. Open TermuXagent.
+1. Open AetherAgent.
 2. Tap ⚙️ → **Settings**.
-3. Enter your **API Key** and **Base URL** (e.g. `https://api.openai.com/v1`).
-4. Tap the **Model** row — pick from the auto-fetched list (or type a custom
-   name).
-5. Tap **Test connection** — you should see "OK — N models visible".
-6. Go back to Chat and ask anything. Try a quick prompt.
+3. Enter **API Key** + **Base URL** → pick a **Model** from the auto-fetched list.
+4. (Optional) Enable **Linux Environment** — requires Termux + `pkg install proot`.
+5. (Optional) Enable **Web Search** — pick a provider.
+6. Go back to Chat and ask anything.
+
+## For maximum power (Linux env)
+
+1. Install [Termux from F-Droid](https://f-droid.org/packages/com.termux/) (not Play Store).
+2. Open Termux, run: `pkg install proot`
+3. In AetherAgent → Settings → Linux Environment → toggle ON.
+4. The agent can now `apk add python3 nodejs ruby gcc git` and run anything.
 
 ## Try these prompts
 
-- *"What runtimes are available on this device? Use list_interpreters and tell
-  me what I can run."*
-- *"Create a file called hello.sh that prints 'Hello from TermuXagent!' and
-  run it with shell."*
-- *"Build a minimal static site: index.html, style.css, app.js. Make it a
-  countdown timer to 2026-12-31. Save to workspace, then share_file index.html
-  so I can preview."*
-- *"Fetch https://api.github.com/repos/JetBrains/kotlin and write a 3-bullet
-  summary of the repo to summary.md. Then copy_to_clipboard the URL."*
+- *"Install Python and write a script that prints the first 20 Fibonacci numbers, then run it."*
+- *"Search the web for the latest Node.js LTS version, then write a Node script that fetches a URL and prints the response."*
+- *"Build a C program that computes pi to 100 digits. Install gcc first."*
+- *"Create a static website with a countdown timer to 2026-12-31, then share_file index.html."*
 
 ## Architecture
 
 ```
 data/
-  api/         OpenAI-compatible client + SSE parser + JSON models
+  api/         OpenAI-compatible client + SSE parser
   agent/       Agent loop + ToolRegistry
-  agent/tools/ shell, file ops, grep, http_fetch, list_interpreters,
-               copy_to_clipboard, share_file, open_url
-  chat/        UI message model + wire-format mapper
+  agent/tools/ 17 tools (shell, files, web, android, linux)
+  chat/        UI message model + session persistence
+  linux/       PRoot + Alpine rootfs manager  ← NEW
   settings/    DataStore-backed settings
   workspace/   Scoped filesystem manager
 ui/
-  theme/       Color (e-ink palette), Type, Theme
-  chat/        ChatScreen + ViewModel + message rows + tool cards + composer
-  workspace/   File browser + in-app editor
-  settings/    Settings form + model picker
-  nav/         Single-activity NavHost
+  theme/       E-ink palette
+  chat/        Chat + sessions + composer + tool cards
+  terminal/    Direct shell access
+  workspace/   File browser + editor
+  settings/    Full settings form
+  nav/         Bottom nav (Chat/Terminal/Files/Settings)
 ```
 
 ## Build from source
 
 ```bash
-git clone https://github.com/UiOPERATIONALparameters/TermuXagent.git
-cd TermuXagent
+git clone https://github.com/UiOPERATIONALparameters/AetherAgent.git
+cd AetherAgent
 ./gradlew assembleRelease
-# APK at app/build/outputs/apk/release/app-release.apk
 ```
 
 Requires JDK 17 and Android SDK 34.
 
-## Limits
+## How PRoot works
 
-- **Non-rooted Android.** Shell commands run via `/system/bin/sh` + Android's
-  built-in `toybox`. That gives you `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`,
-  `find`, `grep`, `sed`, `awk`, `gzip`, `tar`, `head`, `tail`, `sort`, `uniq`,
-  `wc`, `bc`, `tr`, `cut`, `tee`, `xargs`, etc. — but **no `python`, `node`,
-  `pip`, `apt`, or `curl`** unless you've separately installed them (e.g. via
-  Termux). The `list_interpreters` tool tells the agent exactly what's
-  available so it can adapt.
-- The agent is sandboxed to its app-private workspace (`Android/data/
-  com.termuxagent/files/workspace`). It cannot access the rest of your phone's
-  filesystem.
-- Tool output is truncated (shell ~20KB, file reads ~1MB, http ~16KB) so a
-  single tool call can't OOM the chat.
+PRoot intercepts syscalls via `ptrace(PTRACE_SYSCALL)`. Every file path the
+process tries to access is translated to a path inside the "guest" rootfs.
+This has ~10-20% overhead but requires no root. The agent's shell runs:
+
+```
+proot -r rootfs/ -b /dev -b /proc -b /sys -b workspace:/root/workspace \
+  /bin/sh -c "cd /root/workspace && <command>"
+```
+
+Inside, the AI gets a real Alpine Linux with `apk` package manager.
 
 ## License
 

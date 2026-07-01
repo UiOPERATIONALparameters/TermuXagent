@@ -1,33 +1,31 @@
 package com.termuxagent.data.agent.tools
 
+import com.termuxagent.data.linux.LinuxEnvironment
 import com.termuxagent.data.workspace.WorkspaceManager
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedReader
-import java.io.File
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 /**
- * Run a shell command in the workspace. Uses Android's /system/bin/sh with
- * toybox providing a usable Unix toolset (ls, cat, cp, mv, rm, mkdir, find,
- * grep, sed, awk, gzip, tar, head, tail, sort, uniq, wc, …). Non-rooted:
- * commands are scoped to the workspace and the app's data dir.
+ * Run a shell command. When a [LinuxEnvironment] is provided and ready,
+ * commands run inside the Alpine Linux rootfs via PRoot — giving the agent
+ * access to apk, python3, nodejs, ruby, gcc, git, etc.
  *
- * Detects common interpreters (python, python3, node) only if the user has
- * installed them (e.g. via Termux:API or by linking). Otherwise shells out
- * normally.
+ * When no Linux env is available (or not yet set up), falls back to
+ * Android's /system/bin/sh + toybox.
  */
-class ShellTool(private val ws: WorkspaceManager) : AgentTool {
+class ShellTool(
+    private val ws: WorkspaceManager,
+    private val linuxEnv: LinuxEnvironment? = null
+) : AgentTool {
     override val name = "shell"
-    override val description = """Run a shell command in the workspace. The workspace root is the cwd.
-Toybox provides: ls, cat, cp, mv, rm, mkdir, find, grep, sed, awk, gzip, tar, head, tail, sort, uniq, wc, bc, tr, cut, tee, xargs, etc.
-Use this to: list files, run scripts you wrote, install nothing (no package manager), inspect output, chain commands.
-Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."""
+    override val description = """Run a shell command. When Linux env is enabled, runs inside Alpine Linux (apk, python3, nodejs, ruby, gcc, git, curl, wget, etc. all available via 'apk add'). Otherwise uses Android's toybox (ls, cat, grep, sed, awk, find, tar, bc, tr, cut, tee, xargs, etc.).
+The workspace is mounted at /root/workspace inside Linux env. Returns combined stdout+stderr + exit code. Output truncated to ~20KB."""
     override val parametersSchema = objSchema(
         properties = mapOf(
-            "command" to strProp("The shell command to run, e.g. 'ls -la' or 'python3 main.py'."),
+            "command" to strProp("The shell command to run, e.g. 'ls -la', 'python3 main.py', or 'apk add python3 && python3 script.py'."),
             "timeout_ms" to intProp("Max runtime in milliseconds.", min = 100, max = 60_000)
         ),
         required = listOf("command")
@@ -39,17 +37,23 @@ Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."
         val timeoutMs = (args["timeout_ms"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30_000)
             .coerceIn(100, 60_000)
 
+        // Decide: Linux env or Android shell?
+        val useLinux = linuxEnv?.isReady == true
+        val actualCommand = if (useLinux) {
+            linuxEnv!!.buildProotCommand(command) ?: command
+        } else {
+            command
+        }
+
         val cwd = ws.root
-        val builder = ProcessBuilder("/system/bin/sh", "-c", command)
+        val builder = ProcessBuilder("/system/bin/sh", "-c", actualCommand)
             .directory(cwd)
             .redirectErrorStream(true)
-        // Make the workspace the home so commands like 'cd ~' behave.
         builder.environment()["HOME"] = cwd.absolutePath
         builder.environment()["TERM"] = "xterm-256color"
         builder.environment()["LANG"] = "en_US.UTF-8"
         builder.environment()["LC_ALL"] = "en_US.UTF-8"
-        // If Termux is installed, prepend its bin dir to PATH so the agent
-        // (and the user via the Terminal screen) can use python3/node/ruby/etc.
+        // If Termux is installed, prepend its bin dir to PATH
         val termuxBin = "/data/data/com.termux/files/usr/bin"
         if (java.io.File(termuxBin).exists()) {
             val currentPath = builder.environment()["PATH"] ?: ""
@@ -74,19 +78,20 @@ Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."
                 total += read
             }
             val finished = proc.waitFor(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            val envTag = if (useLinux) " [linux]" else " [android]"
             if (!finished) {
                 proc.destroyForcibly()
                 ToolResult(
                     ok = false,
-                    output = stripAnsi(out.toString()) + "\n[TIMEOUT after ${timeoutMs}ms — process killed]",
-                    meta = mapOf("command" to command, "exit" to "-1")
+                    output = stripAnsi(out.toString()) + "\n[TIMEOUT after ${timeoutMs}ms — process killed]$envTag",
+                    meta = mapOf("command" to command, "exit" to "-1", "env" to if (useLinux) "linux" else "android")
                 )
             } else {
                 val exit = proc.exitValue()
                 ToolResult(
                     ok = exit == 0,
-                    output = stripAnsi("$out\n[exit code: $exit]".trim()),
-                    meta = mapOf("command" to command, "exit" to exit.toString())
+                    output = stripAnsi("$out\n[exit code: $exit]$envTag".trim()),
+                    meta = mapOf("command" to command, "exit" to exit.toString(), "env" to if (useLinux) "linux" else "android")
                 )
             }
         }.getOrElse { e ->
@@ -94,7 +99,6 @@ Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."
         }
     }
 
-    /** Strip ANSI escape sequences (colors, cursor moves) for clean display. */
     private fun stripAnsi(s: String): String =
         s.replace(Regex("\u001B\\[[0-9;]*[ -/]*[@-~]"), "")
          .replace("\r", "")

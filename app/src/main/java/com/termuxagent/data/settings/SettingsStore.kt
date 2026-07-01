@@ -26,22 +26,25 @@ data class AppSettings(
     val webSearchEnabled: Boolean = true,
     val webSearchProvider: String = "duckduckgo",
     val exaApiKey: String = "",
-    val firecrawlApiKey: String = ""
+    val firecrawlApiKey: String = "",
+    val useLinuxEnv: Boolean = false
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
 }
 
-const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace — a folder you fully control. You can read and write files, run shell commands, search the workspace, fetch URLs, copy to clipboard, share files, and open URLs in the browser.
+const val DEFAULT_SYSTEM_PROMPT = """You are AetherAgent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace — a folder you fully control. You can read and write files, run shell commands, search the workspace, fetch URLs, search the web, copy to clipboard, share files, and open URLs in the browser.
+
+When the Linux environment is enabled, your shell runs inside a real Alpine Linux via PRoot. You can `apk add python3 nodejs ruby gcc git curl wget make cmake` and any other package. This is your own computer — treat it like one.
 
 Behave like a senior engineer with full agency:
 - Plan briefly before acting (1-3 short sentences), then call tools.
 - Prefer the smallest tool call that makes progress. Don't try to do everything in one shot.
 - After each tool result, decide: continue, verify, or summarize.
 - When writing code, create the file with write_file, then run it with shell to verify it works. If it errors, read the error, fix, and retry — don't ask the user to do it.
-- Keep file paths workspace-relative (e.g. "src/main.py"). The workspace root is the cwd for shell commands.
-- Use list_interpreters to discover which runtimes (python3, node, ruby, etc.) are available before assuming one. If a language isn't installed, tell the user how to add it (e.g. via Termux) and proceed with a workaround (shell + toybox, or write code in a language that IS available).
-- You have web_search and web_read tools. Use web_search to find current information on the internet, then web_read to fetch and understand a specific page. Always search before answering questions about recent events, APIs, or documentation you're unsure about.
-- Be honest about limits. If something is impossible on a non-rooted Android device, say so and propose the closest alternative.
+- Keep file paths workspace-relative (e.g. "src/main.py"). The workspace root is the cwd for shell commands. Inside Linux env, it's mounted at /root/workspace.
+- Use list_interpreters to discover which runtimes are available before assuming one. If a language isn't installed and Linux env is on, `apk add` it.
+- You have web_search and web_read tools. Use web_search to find current information, then web_read to fetch and understand a specific page. Always search before answering questions about recent events, APIs, or documentation you're unsure about.
+- Be honest about limits. If something is impossible, say so and propose the closest alternative.
 - When you're done, give the user a short summary of what you built, where the files are, and how to use them. Keep it tight.
 
 Tone: direct, technical, friendly. No filler. Markdown is fine for the final summary."""
@@ -59,6 +62,7 @@ object SettingsStore {
     private val KEY_WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
     private val KEY_EXA_API_KEY = stringPreferencesKey("exa_api_key")
     private val KEY_FIRECRAWL_API_KEY = stringPreferencesKey("firecrawl_api_key")
+    private val KEY_USE_LINUX_ENV = booleanPreferencesKey("use_linux_env")
 
     fun flow(context: Context): Flow<AppSettings> = context.settingsDataStore.data.map { p ->
         AppSettings(
@@ -73,7 +77,8 @@ object SettingsStore {
             webSearchEnabled = p[KEY_WEB_SEARCH_ENABLED] ?: true,
             webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
             exaApiKey = p[KEY_EXA_API_KEY] ?: "",
-            firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: ""
+            firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: "",
+            useLinuxEnv = p[KEY_USE_LINUX_ENV] ?: false
         )
     }
 
@@ -91,7 +96,8 @@ object SettingsStore {
                 webSearchEnabled = p[KEY_WEB_SEARCH_ENABLED] ?: true,
                 webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
                 exaApiKey = p[KEY_EXA_API_KEY] ?: "",
-                firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: ""
+                firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: "",
+                useLinuxEnv = p[KEY_USE_LINUX_ENV] ?: false
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()
@@ -106,6 +112,7 @@ object SettingsStore {
             p[KEY_WEB_SEARCH_PROVIDER] = next.webSearchProvider
             p[KEY_EXA_API_KEY] = next.exaApiKey.trim()
             p[KEY_FIRECRAWL_API_KEY] = next.firecrawlApiKey.trim()
+            p[KEY_USE_LINUX_ENV] = next.useLinuxEnv
         }
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -121,20 +123,15 @@ fun TerminalScreen(
         // Input bar
         Surface(
             modifier = Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 0.dp
         ) {
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val imeBottom = WindowInsets.ime.getBottom(density)
-            val navBottom = WindowInsets.navigationBars.getBottom(density)
-            val bottomPad = with(density) { maxOf(imeBottom, navBottom).toDp() }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .padding(bottom = bottomPad),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {

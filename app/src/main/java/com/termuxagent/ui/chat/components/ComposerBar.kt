@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
@@ -45,19 +45,11 @@ fun ComposerBar(
     modifier: Modifier = Modifier
 ) {
     var text by remember { mutableStateOf("") }
-    val density = LocalDensity.current
-
-    // Compute bottom padding: max(IME, nav bar). This avoids the double-padding
-    // gap that occurs when both imePadding() and navigationBarsPadding() apply.
-    val imeBottom = WindowInsets.ime.getBottom(density)
-    val navBottom = WindowInsets.navigationBars.getBottom(density)
-    val bottomPaddingPx = maxOf(imeBottom, navBottom)
-    val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = bottomPaddingDp),
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp
     ) {
@@ -65,7 +57,7 @@ fun ComposerBar(
             verticalAlignment = Alignment.Bottom,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             TextField(
@@ -73,14 +65,14 @@ fun ComposerBar(
                 onValueChange = { text = it },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 52.dp, max = 200.dp),
+                    .heightIn(min = 48.dp, max = 180.dp),
                 placeholder = {
                     Text(
                         if (isRunning) "Agent is working…" else "Ask anything…",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 },
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -96,13 +88,13 @@ fun ComposerBar(
                         text = ""
                     }
                 }),
-                maxLines = 8
+                maxLines = 6
             )
             if (isRunning) {
                 IconButton(
                     onClick = onStop,
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(48.dp)
                         .clip(RoundedCornerShape(50))
                         .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(50))
                 ) {
@@ -122,7 +114,7 @@ fun ComposerBar(
                     },
                     enabled = text.isNotBlank(),
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(48.dp)
                         .clip(RoundedCornerShape(50))
                         .background(
                             if (text.isNotBlank()) MaterialTheme.colorScheme.primary

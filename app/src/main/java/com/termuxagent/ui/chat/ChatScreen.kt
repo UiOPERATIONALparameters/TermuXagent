@@ -90,7 +90,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            "TermuXagent",
+                            "AetherAgent",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -279,7 +279,7 @@ private fun EmptyChatHint(
         }
         item {
             Text(
-                "TermuXagent",
+                "AetherAgent",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground

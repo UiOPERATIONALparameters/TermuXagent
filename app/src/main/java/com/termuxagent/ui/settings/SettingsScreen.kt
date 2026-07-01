@@ -396,6 +396,35 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Linux Environment ─────────────────────────────────────────
+            item { SectionTitle("Linux Environment") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Use Linux environment", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                            Text(
+                                "Runs shell commands inside Alpine Linux via PRoot. The AI gets apk, python3, nodejs, ruby, gcc, git, etc.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = s.useLinuxEnv, onCheckedChange = vm::setUseLinuxEnv)
+                    }
+                    if (s.useLinuxEnv) {
+                        Text(
+                            "Requires Termux with 'pkg install proot'. Install Termux from F-Droid, then run that command. The app detects it automatically.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             // ── Appearance ────────────────────────────────────────────────
             item { SectionTitle("Appearance") }
             item {
@@ -445,7 +474,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("TermuXagent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("AetherAgent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                             style = MaterialTheme.typography.bodySmall,

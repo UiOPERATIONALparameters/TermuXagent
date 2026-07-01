@@ -7,6 +7,7 @@ import com.termuxagent.data.api.OpenAIClient
 import com.termuxagent.data.api.ToolCall
 import com.termuxagent.data.api.ToolCallFunction
 import com.termuxagent.data.settings.AppSettings
+import com.termuxagent.data.settings.DEFAULT_SYSTEM_PROMPT
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -73,7 +74,9 @@ class Agent(
         }
 
         val messages = buildList {
-            add(ChatMessage(role = "system", content = settings.systemPrompt))
+            // If the user cleared the system prompt, fall back to the default.
+            val effectiveSystemPrompt = settings.systemPrompt.ifBlank { DEFAULT_SYSTEM_PROMPT }
+            add(ChatMessage(role = "system", content = effectiveSystemPrompt))
             addAll(history)
             add(ChatMessage(role = "user", content = userInput))
         }

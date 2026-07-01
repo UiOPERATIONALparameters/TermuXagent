@@ -39,7 +39,7 @@ class TerminalViewModel(private val context: Context) : ViewModel() {
     private var lineId: Long = 0L
 
     init {
-        appendLine(TerminalLine.Kind.Info, "TermuXagent terminal — workspace: ${WorkspaceManager.root.absolutePath}")
+        appendLine(TerminalLine.Kind.Info, "AetherAgent terminal — workspace: ${WorkspaceManager.root.absolutePath}")
         appendLine(TerminalLine.Kind.Info, "Type 'help' for built-in commands. Toybox provides: ls, cat, grep, sed, awk, find, tar, bc, ...")
         appendLine(TerminalLine.Kind.Info, "")
     }
