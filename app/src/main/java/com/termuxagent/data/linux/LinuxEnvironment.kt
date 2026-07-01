@@ -158,8 +158,10 @@ class LinuxEnvironment(private val context: Context) {
                 }
                 line.isBlank() -> {
                     // End of package entry
-                    if (currentPackage in wanted && currentFilename != null) {
-                        result[currentPackage] = baseUrl + currentFilename
+                    val pkg = currentPackage
+                    val fn = currentFilename
+                    if (pkg != null && fn != null && pkg in wanted) {
+                        result[pkg] = baseUrl + fn
                     }
                     currentPackage = null
                     currentFilename = null
