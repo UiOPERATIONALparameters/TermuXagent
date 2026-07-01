@@ -17,9 +17,12 @@ import com.termuxagent.data.agent.tools.MkdirTool
 import com.termuxagent.data.agent.tools.ReadFileTool
 import com.termuxagent.data.agent.tools.ShellTool
 import com.termuxagent.data.agent.tools.TreeTool
+import com.termuxagent.data.agent.tools.WebReadTool
+import com.termuxagent.data.agent.tools.WebSearchTool
 import com.termuxagent.data.agent.tools.WriteFileTool
 import com.termuxagent.data.api.ToolDef
 import com.termuxagent.data.api.ToolFunction
+import com.termuxagent.data.settings.AppSettings
 import com.termuxagent.data.workspace.WorkspaceManager
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -30,26 +33,36 @@ import kotlinx.serialization.json.buildJsonObject
  * Holds the tool implementations and produces the OpenAI-style `tools` array
  * to send with chat requests.
  */
-class ToolRegistry(ws: WorkspaceManager) {
-    private val tools: List<AgentTool> = listOf(
-        ShellTool(ws),
-        ReadFileTool(ws),
-        WriteFileTool(ws),
-        EditFileTool(ws),
-        AppendFileTool(ws),
-        ListDirTool(ws),
-        TreeTool(ws),
-        GrepTool(ws),
-        MkdirTool(ws),
-        DeleteTool(ws),
-        FileInfoTool(ws),
-        HttpFetchTool(),
-        DownloadUrlTool(ws),
-        ListInterpretersTool(),
-        CopyClipboardTool(),
-        ShareFileTool(ws),
-        OpenUrlTool()
-    )
+class ToolRegistry(ws: WorkspaceManager, settings: AppSettings) {
+    private val tools: List<AgentTool> = buildList {
+        add(ShellTool(ws))
+        add(ReadFileTool(ws))
+        add(WriteFileTool(ws))
+        add(EditFileTool(ws))
+        add(AppendFileTool(ws))
+        add(ListDirTool(ws))
+        add(TreeTool(ws))
+        add(GrepTool(ws))
+        add(MkdirTool(ws))
+        add(DeleteTool(ws))
+        add(FileInfoTool(ws))
+        add(HttpFetchTool())
+        add(DownloadUrlTool(ws))
+        add(ListInterpretersTool())
+        add(CopyClipboardTool())
+        add(ShareFileTool(ws))
+        add(OpenUrlTool())
+        // Web search tools — conditionally included based on settings
+        if (settings.webSearchEnabled) {
+            add(WebSearchTool(
+                provider = settings.webSearchProvider,
+                exaApiKey = settings.exaApiKey,
+                firecrawlApiKey = settings.firecrawlApiKey
+            ))
+        }
+        // web_read is always available — it's just a URL fetcher, no API cost
+        add(WebReadTool())
+    }
 
     private val byName: Map<String, AgentTool> = tools.associateBy { it.name }
 

@@ -27,7 +27,9 @@ data class EditableFields(
     val apiKey: String = "",
     val baseUrl: String = "",
     val model: String = "",
-    val systemPrompt: String = ""
+    val systemPrompt: String = "",
+    val exaApiKey: String = "",
+    val firecrawlApiKey: String = ""
 )
 
 data class SettingsUiState(
@@ -66,7 +68,9 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                                 apiKey = s.apiKey,
                                 baseUrl = s.baseUrl,
                                 model = s.model,
-                                systemPrompt = s.systemPrompt
+                                systemPrompt = s.systemPrompt,
+                                exaApiKey = s.exaApiKey,
+                                firecrawlApiKey = s.firecrawlApiKey
                             )
                         )
                     }
@@ -112,6 +116,16 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
         schedulePersist { s, e -> s.copy(systemPrompt = e.systemPrompt) }
     }
 
+    fun setExaApiKey(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(exaApiKey = v)) }
+        schedulePersist { s, e -> s.copy(exaApiKey = e.exaApiKey) }
+    }
+
+    fun setFirecrawlApiKey(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(firecrawlApiKey = v)) }
+        schedulePersist { s, e -> s.copy(firecrawlApiKey = e.firecrawlApiKey) }
+    }
+
     /** Debounced write-through to DataStore. */
     private fun schedulePersist(apply: (AppSettings, EditableFields) -> AppSettings) {
         persistJob?.cancel()
@@ -128,6 +142,8 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setTemperature(v: Float) = updateImmediate { it.copy(temperature = v) }
     fun setThemeMode(v: ThemeMode) = updateImmediate { it.copy(themeMode = v) }
     fun setDynamicColor(v: Boolean) = updateImmediate { it.copy(dynamicColor = v) }
+    fun setWebSearchEnabled(v: Boolean) = updateImmediate { it.copy(webSearchEnabled = v) }
+    fun setWebSearchProvider(v: String) = updateImmediate { it.copy(webSearchProvider = v) }
 
     private fun updateImmediate(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { SettingsStore.update(context, transform) }

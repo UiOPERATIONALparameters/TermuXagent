@@ -10,17 +10,22 @@ import com.termuxagent.data.agent.tools.ToolResult
 import com.termuxagent.data.api.ChatMessage
 import com.termuxagent.data.api.OpenAIClient
 import com.termuxagent.data.chat.AssistantBlock
+import com.termuxagent.data.chat.SessionStore
+import com.termuxagent.data.chat.StoredSession
 import com.termuxagent.data.chat.ToolCallStatus
 import com.termuxagent.data.chat.UiMessage
+import com.termuxagent.data.chat.deriveTitle
+import com.termuxagent.data.chat.toStored
+import com.termuxagent.data.chat.toUi
 import com.termuxagent.data.chat.toWireFormat
 import com.termuxagent.data.settings.AppSettings
 import com.termuxagent.data.settings.SettingsStore
 import com.termuxagent.data.workspace.WorkspaceManager
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -29,7 +34,10 @@ data class ChatUiState(
     val isRunning: Boolean = false,
     val error: String? = null,
     val settings: AppSettings = AppSettings(),
-    val needsConfig: Boolean = false
+    val needsConfig: Boolean = false,
+    val currentSessionId: String? = null,
+    val sessions: List<SessionStore.SessionMeta> = emptyList(),
+    val showSessionList: Boolean = false
 )
 
 class ChatViewModel(private val context: Context) : ViewModel() {
@@ -38,19 +46,146 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var runJob: Job? = null
+    private var saveJob: Job? = null
+    private val sessionStore = SessionStore(context)
 
     init {
-        // Observe settings continuously so changes (API key, model, theme)
-        // are reflected without restarting the screen.
+        // Observe settings continuously.
         viewModelScope.launch {
             SettingsStore.flow(context).collect { s ->
                 _state.update { it.copy(settings = s, needsConfig = !s.isConfigured) }
             }
         }
+        // Load the most recent session (or start fresh).
+        viewModelScope.launch {
+            val sessions = sessionStore.listSessions()
+            val mostRecent = sessions.firstOrNull()
+            if (mostRecent != null) {
+                val loaded = sessionStore.loadSession(mostRecent.id)
+                if (loaded != null) {
+                    _state.update {
+                        it.copy(
+                            messages = loaded.messages.toUi(),
+                            currentSessionId = loaded.id,
+                            sessions = sessions
+                        )
+                    }
+                    return@launch
+                }
+            }
+            // No sessions — create a new one.
+            val newSession = sessionStore.createSession()
+            sessionStore.saveSession(newSession)
+            _state.update {
+                it.copy(
+                    currentSessionId = newSession.id,
+                    sessions = sessionStore.listSessions()
+                )
+            }
+        }
     }
 
-    fun reloadSettings() {
-        // No-op: settings are observed continuously. Kept for backward compat.
+    fun reloadSettings() { /* no-op: observed continuously */ }
+
+    fun toggleSessionList() {
+        _state.update { it.copy(showSessionList = !it.showSessionList) }
+    }
+
+    fun hideSessionList() {
+        _state.update { it.copy(showSessionList = false) }
+    }
+
+    fun newSession() {
+        // Save current first.
+        saveCurrentSession()
+        val newSession = sessionStore.createSession()
+        sessionStore.saveSession(newSession)
+        _state.update {
+            it.copy(
+                messages = emptyList(),
+                currentSessionId = newSession.id,
+                sessions = sessionStore.listSessions(),
+                showSessionList = false,
+                error = null
+            )
+        }
+    }
+
+    fun switchToSession(id: String) {
+        if (id == _state.value.currentSessionId) {
+            _state.update { it.copy(showSessionList = false) }
+            return
+        }
+        saveCurrentSession()
+        val loaded = sessionStore.loadSession(id)
+        if (loaded != null) {
+            _state.update {
+                it.copy(
+                    messages = loaded.messages.toUi(),
+                    currentSessionId = id,
+                    showSessionList = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    fun deleteSession(id: String) {
+        sessionStore.deleteSession(id)
+        val remaining = sessionStore.listSessions()
+        if (id == _state.value.currentSessionId) {
+            // We deleted the current session — switch to the next available or create new
+            val next = remaining.firstOrNull()
+            if (next != null) {
+                val loaded = sessionStore.loadSession(next.id)
+                _state.update {
+                    it.copy(
+                        messages = loaded?.messages?.toUi() ?: emptyList(),
+                        currentSessionId = next.id,
+                        sessions = remaining
+                    )
+                }
+            } else {
+                val newSession = sessionStore.createSession()
+                sessionStore.saveSession(newSession)
+                _state.update {
+                    it.copy(
+                        messages = emptyList(),
+                        currentSessionId = newSession.id,
+                        sessions = listOf(SessionStore.SessionMeta(newSession.id, newSession.title, newSession.updatedAt, 0))
+                    )
+                }
+            }
+        } else {
+            _state.update { it.copy(sessions = remaining) }
+        }
+    }
+
+    private fun saveCurrentSession() {
+        val sid = _state.value.currentSessionId ?: return
+        val messages = _state.value.messages
+        if (messages.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val existing = sessionStore.loadSession(sid)
+        val session = StoredSession(
+            id = sid,
+            title = existing?.title?.takeIf { it != "New chat" } ?: deriveTitle(messages),
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now,
+            messages = messages.toStored()
+        )
+        sessionStore.saveSession(session)
+        // Refresh session list in state.
+        _state.update { it.copy(sessions = sessionStore.listSessions()) }
+    }
+
+    /** Debounced auto-save: saves 1.5s after the last message change. */
+    private fun scheduleAutoSave() {
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch {
+            delay(1500)
+            saveCurrentSession()
+        }
     }
 
     fun send(text: String) {
@@ -70,11 +205,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             isStreaming = true
         )
         _state.update { it.copy(messages = it.messages + userMsg + assistantMsg, isRunning = true, error = null) }
+        scheduleAutoSave()
 
         // Build the agent + run.
         val settings = current.settings
         val client = OpenAIClient(baseUrl = settings.baseUrl, apiKey = settings.apiKey)
-        val registry = ToolRegistry(WorkspaceManager)
+        val registry = ToolRegistry(WorkspaceManager, settings)
         val agent = Agent(settings = settings, registry = registry, client = client)
         val history = (_state.value.messages.dropLast(2)) // exclude the just-added user+assistant placeholders
             .toWireFormat()
@@ -83,6 +219,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
             try {
                 agent.run(history = history, userInput = text.trim()).collect { ev ->
                     handleAgentEvent(assistantId, ev)
+                    scheduleAutoSave()
                 }
             } catch (ce: kotlinx.coroutines.CancellationException) {
                 finalizeAssistant(assistantId, cancelled = true)
@@ -92,6 +229,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 finalizeAssistant(assistantId, error = t.message)
             } finally {
                 _state.update { it.copy(isRunning = false) }
+                saveCurrentSession()
             }
         }
     }
@@ -100,11 +238,13 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         runJob?.cancel()
         runJob = null
         _state.update { it.copy(isRunning = false) }
+        saveCurrentSession()
     }
 
     fun clear() {
         if (_state.value.isRunning) stop()
         _state.update { it.copy(messages = emptyList(), error = null) }
+        saveCurrentSession()
     }
 
     fun dismissError() {

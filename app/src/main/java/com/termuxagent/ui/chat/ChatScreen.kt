@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -80,6 +83,7 @@ fun ChatScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -99,6 +103,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { vm.toggleSessionList() }) {
+                        Icon(Icons.Rounded.History, contentDescription = "Sessions")
+                    }
                     IconButton(onClick = { vm.clear() }, enabled = state.messages.isNotEmpty()) {
                         Icon(Icons.Rounded.DeleteSweep, contentDescription = "Clear")
                     }
@@ -138,6 +145,80 @@ fun ChatScreen(
                     }
                     item { Spacer(Modifier.size(8.dp)) }
                 }
+            }
+        }
+    }
+
+    // Session list bottom sheet
+    if (state.showSessionList) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { vm.hideSessionList() },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Chats",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    androidx.compose.material3.TextButton(onClick = { vm.newSession() }) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(4.dp))
+                        Text("New chat")
+                    }
+                }
+                Spacer(Modifier.size(12.dp))
+                if (state.sessions.isEmpty()) {
+                    Text(
+                        "No saved chats yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 24.dp)
+                    )
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(state.sessions, key = { it.id }) { meta ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { vm.switchToSession(meta.id) }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        meta.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (meta.id == state.currentSessionId) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        "${meta.messageCount} msgs · ${java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(meta.updatedAt))}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(onClick = { vm.deleteSession(meta.id) }) {
+                                    Icon(Icons.Rounded.DeleteSweep, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.size(16.dp))
             }
         }
     }

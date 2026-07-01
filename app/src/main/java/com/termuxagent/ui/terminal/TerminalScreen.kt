@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -77,6 +78,7 @@ fun TerminalScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -118,16 +120,20 @@ fun TerminalScreen(
         // Input bar
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .navigationBarsPadding(),
+                .fillMaxWidth(),
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 0.dp
         ) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
+            val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(density)
+            val bottomPad = with(density) { maxOf(imeBottom, navBottom).toDp() }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(bottom = bottomPad),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {

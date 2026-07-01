@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -79,6 +80,7 @@ fun SettingsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -328,6 +330,69 @@ fun SettingsScreen(
                         valueRange = 0f..2f,
                         steps = 39
                     )
+                }
+            }
+
+            // ── Web Search ────────────────────────────────────────────────
+            item { SectionTitle("Web Search") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Enable web search", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                            Text(
+                                "Gives the AI a web_search + web_read tool.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = s.webSearchEnabled, onCheckedChange = vm::setWebSearchEnabled)
+                    }
+                    if (s.webSearchEnabled) {
+                        Text("Provider", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("duckduckgo" to "DuckDuckGo", "exa" to "Exa", "firecrawl" to "Firecrawl").forEach { (id, label) ->
+                                FilterChip(
+                                    selected = s.webSearchProvider == id,
+                                    onClick = { vm.setWebSearchProvider(id) },
+                                    label = { Text(label) }
+                                )
+                            }
+                        }
+                        when (s.webSearchProvider) {
+                            "exa" -> OutlinedTextField(
+                                value = e.exaApiKey,
+                                onValueChange = vm::setExaApiKey,
+                                label = { Text("Exa API Key") },
+                                placeholder = { Text("exa-…") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            "firecrawl" -> OutlinedTextField(
+                                value = e.firecrawlApiKey,
+                                onValueChange = vm::setFirecrawlApiKey,
+                                label = { Text("Firecrawl API Key") },
+                                placeholder = { Text("fc-…") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (s.webSearchProvider == "duckduckgo") {
+                            Text(
+                                "DuckDuckGo is free and requires no API key. Results are scraped from HTML — quality varies.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 

@@ -22,7 +22,11 @@ data class AppSettings(
     val maxIterations: Int = 25,
     val temperature: Float = 0.3f,
     val themeMode: ThemeMode = ThemeMode.System,
-    val dynamicColor: Boolean = false
+    val dynamicColor: Boolean = false,
+    val webSearchEnabled: Boolean = true,
+    val webSearchProvider: String = "duckduckgo",
+    val exaApiKey: String = "",
+    val firecrawlApiKey: String = ""
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
 }
@@ -36,6 +40,7 @@ Behave like a senior engineer with full agency:
 - When writing code, create the file with write_file, then run it with shell to verify it works. If it errors, read the error, fix, and retry — don't ask the user to do it.
 - Keep file paths workspace-relative (e.g. "src/main.py"). The workspace root is the cwd for shell commands.
 - Use list_interpreters to discover which runtimes (python3, node, ruby, etc.) are available before assuming one. If a language isn't installed, tell the user how to add it (e.g. via Termux) and proceed with a workaround (shell + toybox, or write code in a language that IS available).
+- You have web_search and web_read tools. Use web_search to find current information on the internet, then web_read to fetch and understand a specific page. Always search before answering questions about recent events, APIs, or documentation you're unsure about.
 - Be honest about limits. If something is impossible on a non-rooted Android device, say so and propose the closest alternative.
 - When you're done, give the user a short summary of what you built, where the files are, and how to use them. Keep it tight.
 
@@ -50,6 +55,10 @@ object SettingsStore {
     private val KEY_TEMP = stringPreferencesKey("temperature") // stored as string for fractional precision
     private val KEY_THEME = stringPreferencesKey("theme_mode")
     private val KEY_DYNAMIC = booleanPreferencesKey("dynamic_color")
+    private val KEY_WEB_SEARCH_ENABLED = booleanPreferencesKey("web_search_enabled")
+    private val KEY_WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
+    private val KEY_EXA_API_KEY = stringPreferencesKey("exa_api_key")
+    private val KEY_FIRECRAWL_API_KEY = stringPreferencesKey("firecrawl_api_key")
 
     fun flow(context: Context): Flow<AppSettings> = context.settingsDataStore.data.map { p ->
         AppSettings(
@@ -60,7 +69,11 @@ object SettingsStore {
             maxIterations = p[KEY_MAX_ITER]?.takeIf { it in 1..100 } ?: 25,
             temperature = p[KEY_TEMP]?.toFloatOrNull()?.takeIf { it in 0f..2f } ?: 0.3f,
             themeMode = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "System") }.getOrDefault(ThemeMode.System),
-            dynamicColor = p[KEY_DYNAMIC] ?: false
+            dynamicColor = p[KEY_DYNAMIC] ?: false,
+            webSearchEnabled = p[KEY_WEB_SEARCH_ENABLED] ?: true,
+            webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
+            exaApiKey = p[KEY_EXA_API_KEY] ?: "",
+            firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: ""
         )
     }
 
@@ -74,7 +87,11 @@ object SettingsStore {
                 maxIterations = p[KEY_MAX_ITER] ?: 25,
                 temperature = p[KEY_TEMP]?.toFloatOrNull() ?: 0.3f,
                 themeMode = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "System") }.getOrDefault(ThemeMode.System),
-                dynamicColor = p[KEY_DYNAMIC] ?: false
+                dynamicColor = p[KEY_DYNAMIC] ?: false,
+                webSearchEnabled = p[KEY_WEB_SEARCH_ENABLED] ?: true,
+                webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
+                exaApiKey = p[KEY_EXA_API_KEY] ?: "",
+                firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: ""
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()
@@ -85,6 +102,10 @@ object SettingsStore {
             p[KEY_TEMP] = next.temperature.coerceIn(0f, 2f).toString()
             p[KEY_THEME] = next.themeMode.name
             p[KEY_DYNAMIC] = next.dynamicColor
+            p[KEY_WEB_SEARCH_ENABLED] = next.webSearchEnabled
+            p[KEY_WEB_SEARCH_PROVIDER] = next.webSearchProvider
+            p[KEY_EXA_API_KEY] = next.exaApiKey.trim()
+            p[KEY_FIRECRAWL_API_KEY] = next.firecrawlApiKey.trim()
         }
     }
 }
