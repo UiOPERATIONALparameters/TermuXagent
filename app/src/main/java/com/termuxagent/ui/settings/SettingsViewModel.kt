@@ -30,10 +30,12 @@ data class EditableFields(
     val systemPrompt: String = "",
     val exaApiKey: String = "",
     val firecrawlApiKey: String = "",
+    val tavilyApiKey: String = "",
     val sshHost: String = "",
     val sshUser: String = "",
     val sshPassword: String = "",
-    val sshWorkingDir: String = ""
+    val sshWorkingDir: String = "",
+    val githubToken: String = ""
 )
 
 data class SettingsUiState(
@@ -75,10 +77,12 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                                 systemPrompt = s.systemPrompt,
                                 exaApiKey = s.exaApiKey,
                                 firecrawlApiKey = s.firecrawlApiKey,
+                                tavilyApiKey = s.tavilyApiKey,
                                 sshHost = s.sshHost,
                                 sshUser = s.sshUser,
                                 sshPassword = s.sshPassword,
-                                sshWorkingDir = s.sshWorkingDir
+                                sshWorkingDir = s.sshWorkingDir,
+                                githubToken = s.githubToken
                             )
                         )
                     }
@@ -154,6 +158,11 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setWebSearchProvider(v: String) = updateImmediate { it.copy(webSearchProvider = v) }
     fun setSshEnabled(v: Boolean) = updateImmediate { it.copy(sshEnabled = v) }
     fun setSshPort(v: Int) = updateImmediate { it.copy(sshPort = v) }
+    fun setCasualMode(v: Boolean) = updateImmediate { it.copy(casualMode = v) }
+    fun setToolShell(v: Boolean) = updateImmediate { it.copy(toolShell = v) }
+    fun setToolFiles(v: Boolean) = updateImmediate { it.copy(toolFiles = v) }
+    fun setToolWeb(v: Boolean) = updateImmediate { it.copy(toolWeb = v) }
+    fun setToolAndroid(v: Boolean) = updateImmediate { it.copy(toolAndroid = v) }
 
     fun setSshHost(v: String) {
         _mutable.update { it.copy(editing = it.editing.copy(sshHost = v)) }
@@ -170,6 +179,14 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setSshWorkingDir(v: String) {
         _mutable.update { it.copy(editing = it.editing.copy(sshWorkingDir = v)) }
         schedulePersist { s, e -> s.copy(sshWorkingDir = e.sshWorkingDir) }
+    }
+    fun setGithubToken(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(githubToken = v)) }
+        schedulePersist { s, e -> s.copy(githubToken = e.githubToken) }
+    }
+    fun setTavilyApiKey(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(tavilyApiKey = v)) }
+        schedulePersist { s, e -> s.copy(tavilyApiKey = e.tavilyApiKey) }
     }
 
     private var testSshJob: Job? = null
@@ -190,6 +207,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                         port = s.sshPort,
                         user = e.sshUser,
                         password = e.sshPassword,
+                        privateKey = s.sshPrivateKey,
                         workingDir = e.sshWorkingDir
                     )
                     if (!ssh.connect()) {
@@ -204,6 +222,62 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                 it.copy(testing = false, testResult = result)
             }
         }
+    }
+
+    // ── GitHub Codespaces quick setup ──────────────────────────────────────────
+
+    private var codespacesJob: Job? = null
+    fun setupCodespaces(codespaceName: String) {
+        val token = _mutable.value.editing.githubToken
+        if (token.isBlank()) {
+            _mutable.update { it.copy(testResult = "Enter your GitHub token first.") }
+            return
+        }
+        _mutable.update { it.copy(testing = true, testResult = "Setting up Codespaces…") }
+        codespacesJob?.cancel()
+        codespacesJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val helper = com.termuxagent.data.ssh.CodespacesHelper(token)
+                    val setup = helper.setup(codespaceName)
+                    if (setup.success) {
+                        // Save the SSH settings + private key
+                        updateImmediate {
+                            it.copy(
+                                sshEnabled = true,
+                                sshHost = setup.sshHost,
+                                sshPort = setup.sshPort,
+                                sshUser = setup.sshUser,
+                                sshPrivateKey = setup.privateKey,
+                                sshPassword = ""
+                            )
+                        }
+                        // Also update the editable fields
+                        _mutable.update { sm ->
+                            sm.copy(
+                                editing = sm.editing.copy(
+                                    sshHost = setup.sshHost,
+                                    sshUser = setup.sshUser,
+                                    sshPassword = ""
+                                )
+                            )
+                        }
+                        setup.message
+                    } else {
+                        "Setup failed: ${setup.message}"
+                    }
+                }.getOrElse { err -> "Error: ${err.message}" }
+            }
+            _mutable.update { it.copy(testing = false, testResult = result) }
+        }
+    }
+
+    fun listCodespaces(): List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>? {
+        val token = _mutable.value.editing.githubToken
+        if (token.isBlank()) return null
+        return runCatching {
+            com.termuxagent.data.ssh.CodespacesHelper(token).listCodespaces()
+        }.getOrNull()
     }
 
     private fun updateImmediate(transform: (AppSettings) -> AppSettings) {

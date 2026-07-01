@@ -120,7 +120,9 @@ fun TerminalScreen(
         // Input bar
         Surface(
             modifier = Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding(),
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 0.dp
         ) {

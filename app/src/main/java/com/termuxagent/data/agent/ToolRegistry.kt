@@ -35,33 +35,43 @@ import kotlinx.serialization.json.buildJsonObject
  */
 class ToolRegistry(ws: WorkspaceManager, settings: AppSettings) {
     private val tools: List<AgentTool> = buildList {
-        add(ShellTool(ws, settings))
-        add(ReadFileTool(ws))
-        add(WriteFileTool(ws))
-        add(EditFileTool(ws))
-        add(AppendFileTool(ws))
-        add(ListDirTool(ws))
-        add(TreeTool(ws))
-        add(GrepTool(ws))
-        add(MkdirTool(ws))
-        add(DeleteTool(ws))
-        add(FileInfoTool(ws))
-        add(HttpFetchTool())
-        add(DownloadUrlTool(ws))
-        add(ListInterpretersTool())
-        add(CopyClipboardTool())
-        add(ShareFileTool(ws))
-        add(OpenUrlTool())
-        // Web search tools — conditionally included based on settings
-        if (settings.webSearchEnabled) {
+        // Casual mode = no tools at all, just chat
+        if (settings.casualMode) return@buildList
+
+        if (settings.toolShell) {
+            add(ShellTool(ws, settings))
+        }
+        if (settings.toolFiles) {
+            add(ReadFileTool(ws))
+            add(WriteFileTool(ws))
+            add(EditFileTool(ws))
+            add(AppendFileTool(ws))
+            add(ListDirTool(ws))
+            add(TreeTool(ws))
+            add(GrepTool(ws))
+            add(MkdirTool(ws))
+            add(DeleteTool(ws))
+            add(FileInfoTool(ws))
+            add(DownloadUrlTool(ws))
+        }
+        if (settings.toolWeb && settings.webSearchEnabled) {
             add(WebSearchTool(
                 provider = settings.webSearchProvider,
                 exaApiKey = settings.exaApiKey,
-                firecrawlApiKey = settings.firecrawlApiKey
+                firecrawlApiKey = settings.firecrawlApiKey,
+                tavilyApiKey = settings.tavilyApiKey
             ))
+            add(WebReadTool())
+            add(HttpFetchTool())
         }
-        // web_read is always available — it's just a URL fetcher, no API cost
-        add(WebReadTool())
+        if (settings.toolAndroid) {
+            add(ListInterpretersTool())
+            add(CopyClipboardTool())
+            add(ShareFileTool(ws))
+            add(OpenUrlTool())
+        }
+        // SSH tool is the ShellTool — already added if toolShell is on
+        // and sshEnabled is checked inside ShellTool
     }
 
     private val byName: Map<String, AgentTool> = tools.associateBy { it.name }

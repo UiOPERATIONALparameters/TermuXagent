@@ -355,7 +355,7 @@ fun SettingsScreen(
                     if (s.webSearchEnabled) {
                         Text("Provider", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("duckduckgo" to "DuckDuckGo", "exa" to "Exa", "firecrawl" to "Firecrawl").forEach { (id, label) ->
+                            listOf("duckduckgo" to "DuckDuckGo", "tavily" to "Tavily", "exa" to "Exa", "firecrawl" to "Firecrawl").forEach { (id, label) ->
                                 FilterChip(
                                     selected = s.webSearchProvider == id,
                                     onClick = { vm.setWebSearchProvider(id) },
@@ -364,6 +364,16 @@ fun SettingsScreen(
                             }
                         }
                         when (s.webSearchProvider) {
+                            "tavily" -> OutlinedTextField(
+                                value = e.tavilyApiKey,
+                                onValueChange = vm::setTavilyApiKey,
+                                label = { Text("Tavily API Key") },
+                                placeholder = { Text("tvly-…") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
                             "exa" -> OutlinedTextField(
                                 value = e.exaApiKey,
                                 onValueChange = vm::setExaApiKey,
@@ -400,6 +410,62 @@ fun SettingsScreen(
             item { SectionTitle("Cloud Linux (SSH)") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // ── GitHub Codespaces quick setup ──────────────────────
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("GitHub Codespaces (Easiest)", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Free 120 hrs/month, 2-core Linux. Paste your GitHub token, pick a codespace, done.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = e.githubToken,
+                                onValueChange = vm::setGithubToken,
+                                label = { Text("GitHub Token") },
+                                placeholder = { Text("ghp_…") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            val codespaces = remember { mutableStateOf<List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>?>(null) }
+                            androidx.compose.material3.TextButton(onClick = {
+                                codespaces.value = vm.listCodespaces()
+                            }) {
+                                Text("List my codespaces")
+                            }
+                            codespaces.value?.let { list ->
+                                if (list.isEmpty()) {
+                                    Text("No codespaces found. Create one at github.com/codespaces.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    list.forEach { cs ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable { vm.setupCodespaces(cs.name) }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(cs.name, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                                                Text("${cs.state} · ${cs.machine}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Text("Connect →", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text("— or enter SSH manually —", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -498,6 +564,75 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            // ── Tools ─────────────────────────────────────────────────────
+            item { SectionTitle("Tools") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Casual mode", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                            Text(
+                                "Disable ALL tools for plain chat. The AI just talks to you.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = s.casualMode, onCheckedChange = vm::setCasualMode)
+                    }
+                    if (!s.casualMode) {
+                        Text("Enable/disable individual tools:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Shell", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                                Text("Run commands (local or SSH)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = s.toolShell, onCheckedChange = vm::setToolShell)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Files", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                                Text("Read/write/edit/search workspace files", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = s.toolFiles, onCheckedChange = vm::setToolFiles)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Web", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                                Text("web_search + web_read + http_fetch", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = s.toolWeb, onCheckedChange = vm::setToolWeb)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Android", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                                Text("Clipboard, share, open URL, list interpreters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = s.toolAndroid, onCheckedChange = vm::setToolAndroid)
+                        }
                     }
                 }
             }

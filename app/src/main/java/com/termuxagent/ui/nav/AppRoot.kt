@@ -72,6 +72,8 @@ fun AppRoot() {
         val nav = rememberNavController()
         val backStackEntry by nav.currentBackStackEntryAsState()
         val currentRoute = backStackEntry?.destination?.route ?: Routes.CHAT
+        val imeVisible = androidx.compose.foundation.layout.WindowInsets.ime
+            .getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
 
         Column(
             modifier = Modifier
@@ -81,9 +83,7 @@ fun AppRoot() {
             NavHost(
                 navController = nav,
                 startDestination = Routes.CHAT,
-                modifier = Modifier
-                    .weight(1f)
-                    .imePadding()
+                modifier = Modifier.weight(1f)
             ) {
                 composable(Routes.CHAT) {
                     ChatScreen(
@@ -102,11 +102,14 @@ fun AppRoot() {
                 }
             }
 
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.onBackground,
-                tonalElevation = 0.dp
-            ) {
+            // Hide NavigationBar when keyboard is visible — prevents the gap
+            // between composer and keyboard
+            if (!imeVisible) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                    tonalElevation = 0.dp
+                ) {
                 NAV_ITEMS.forEach { item ->
                     val selected = currentRoute == item.route
                     NavigationBarItem(
@@ -141,7 +144,8 @@ fun AppRoot() {
                         }
                     )
                 }
-            }
+                } // end NavigationBar
+            } // end if (!imeVisible)
         }
     }
 }

@@ -7,25 +7,20 @@ import java.io.ByteArrayOutputStream
 
 /**
  * SSH client that connects to a remote Linux machine and runs commands.
- * This gives the AI a REAL Linux computer — full package manager, Python,
- * Node, Ruby, GCC, Git, anything. No PRoot, no ptrace, no extraction bugs.
+ * Supports both password auth (any VPS) and private key auth (GitHub Codespaces).
  *
- * Usage:
- *   val ssh = SshClient(host, port, user, password)
- *   val result = ssh.execute("ls -la /tmp")
- *   ssh.close()
+ * For GitHub Codespaces:
+ *   host = "ssh.github.com", port = 443, user = codespace_name, privateKey = RSA key
  *
- * The user configures SSH credentials in Settings. Recommended free options:
- * - Oracle Cloud Free Tier (always-free ARM VM, 4 cores, 24GB RAM)
- * - GitHub Codespaces (SSH into a codespace)
- * - Google Cloud Free Tier (e2-micro VM)
- * - Any cheap VPS
+ * For any VPS:
+ *   host = your.server.com, port = 22, user = root, password = your_password
  */
 class SshClient(
     private val host: String,
     private val port: Int = 22,
     private val user: String,
-    private val password: String,
+    private val password: String = "",
+    private val privateKey: String = "",
     private val workingDir: String = ""
 ) : AutoCloseable {
 
@@ -35,9 +30,20 @@ class SshClient(
         return try {
             val jsch = JSch()
             val session = jsch.getSession(user, host, port)
-            session.setPassword(password)
+
+            if (privateKey.isNotBlank()) {
+                // Key-based auth (GitHub Codespaces)
+                val keyFile = java.io.File.createTempFile("termuxagent_key", ".pem")
+                keyFile.writeText(privateKey)
+                keyFile.deleteOnExit()
+                jsch.addIdentity(keyFile.absolutePath)
+            } else {
+                // Password-based auth (VPS)
+                session.setPassword(password)
+            }
+
             session.setConfig("StrictHostKeyChecking", "no")
-            session.setConfig("PreferredAuthentications", "password,publickey")
+            session.setConfig("PreferredAuthentications", "publickey,password")
             session.connect(15000)
             this.session = session
             true

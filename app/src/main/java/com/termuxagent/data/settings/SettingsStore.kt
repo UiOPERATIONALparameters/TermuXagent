@@ -27,15 +27,25 @@ data class AppSettings(
     val webSearchProvider: String = "duckduckgo",
     val exaApiKey: String = "",
     val firecrawlApiKey: String = "",
+    val tavilyApiKey: String = "",
     val sshEnabled: Boolean = false,
     val sshHost: String = "",
     val sshPort: Int = 22,
     val sshUser: String = "",
     val sshPassword: String = "",
-    val sshWorkingDir: String = ""
+    val sshPrivateKey: String = "",
+    val sshWorkingDir: String = "",
+    val githubToken: String = "",
+    // Tool toggles — user can enable/disable individual tools
+    val toolShell: Boolean = true,
+    val toolFiles: Boolean = true,
+    val toolWeb: Boolean = true,
+    val toolAndroid: Boolean = true,
+    val toolSsh: Boolean = true,
+    val casualMode: Boolean = false
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
-    val isSshConfigured: Boolean get() = sshHost.isNotBlank() && sshUser.isNotBlank()
+    val isSshConfigured: Boolean get() = sshHost.isNotBlank() && sshUser.isNotBlank() && (sshPassword.isNotBlank() || sshPrivateKey.isNotBlank())
 }
 
 const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace and — when Cloud Linux is configured — a full remote Linux computer accessible via SSH.
@@ -90,7 +100,16 @@ object SettingsStore {
     private val KEY_SSH_PORT = intPreferencesKey("ssh_port")
     private val KEY_SSH_USER = stringPreferencesKey("ssh_user")
     private val KEY_SSH_PASSWORD = stringPreferencesKey("ssh_password")
+    private val KEY_SSH_PRIVATE_KEY = stringPreferencesKey("ssh_private_key")
     private val KEY_SSH_WORKING_DIR = stringPreferencesKey("ssh_working_dir")
+    private val KEY_GITHUB_TOKEN = stringPreferencesKey("github_token")
+    private val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
+    private val KEY_TOOL_SHELL = booleanPreferencesKey("tool_shell")
+    private val KEY_TOOL_FILES = booleanPreferencesKey("tool_files")
+    private val KEY_TOOL_WEB = booleanPreferencesKey("tool_web")
+    private val KEY_TOOL_ANDROID = booleanPreferencesKey("tool_android")
+    private val KEY_TOOL_SSH = booleanPreferencesKey("tool_ssh")
+    private val KEY_CASUAL_MODE = booleanPreferencesKey("casual_mode")
 
     fun flow(context: Context): Flow<AppSettings> = context.settingsDataStore.data.map { p ->
         AppSettings(
@@ -111,7 +130,16 @@ object SettingsStore {
             sshPort = p[KEY_SSH_PORT] ?: 22,
             sshUser = p[KEY_SSH_USER] ?: "",
             sshPassword = p[KEY_SSH_PASSWORD] ?: "",
-            sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: ""
+            sshPrivateKey = p[KEY_SSH_PRIVATE_KEY] ?: "",
+            sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: "",
+            githubToken = p[KEY_GITHUB_TOKEN] ?: "",
+            tavilyApiKey = p[KEY_TAVILY_API_KEY] ?: "",
+            toolShell = p[KEY_TOOL_SHELL] ?: true,
+            toolFiles = p[KEY_TOOL_FILES] ?: true,
+            toolWeb = p[KEY_TOOL_WEB] ?: true,
+            toolAndroid = p[KEY_TOOL_ANDROID] ?: true,
+            toolSsh = p[KEY_TOOL_SSH] ?: true,
+            casualMode = p[KEY_CASUAL_MODE] ?: false
         )
     }
 
@@ -135,7 +163,16 @@ object SettingsStore {
                 sshPort = p[KEY_SSH_PORT] ?: 22,
                 sshUser = p[KEY_SSH_USER] ?: "",
                 sshPassword = p[KEY_SSH_PASSWORD] ?: "",
-                sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: ""
+                sshPrivateKey = p[KEY_SSH_PRIVATE_KEY] ?: "",
+                sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: "",
+                githubToken = p[KEY_GITHUB_TOKEN] ?: "",
+                tavilyApiKey = p[KEY_TAVILY_API_KEY] ?: "",
+                toolShell = p[KEY_TOOL_SHELL] ?: true,
+                toolFiles = p[KEY_TOOL_FILES] ?: true,
+                toolWeb = p[KEY_TOOL_WEB] ?: true,
+                toolAndroid = p[KEY_TOOL_ANDROID] ?: true,
+                toolSsh = p[KEY_TOOL_SSH] ?: true,
+                casualMode = p[KEY_CASUAL_MODE] ?: false
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()
@@ -155,7 +192,16 @@ object SettingsStore {
             p[KEY_SSH_PORT] = next.sshPort
             p[KEY_SSH_USER] = next.sshUser.trim()
             p[KEY_SSH_PASSWORD] = next.sshPassword
+            p[KEY_SSH_PRIVATE_KEY] = next.sshPrivateKey
             p[KEY_SSH_WORKING_DIR] = next.sshWorkingDir.trim()
+            p[KEY_GITHUB_TOKEN] = next.githubToken.trim()
+            p[KEY_TAVILY_API_KEY] = next.tavilyApiKey.trim()
+            p[KEY_TOOL_SHELL] = next.toolShell
+            p[KEY_TOOL_FILES] = next.toolFiles
+            p[KEY_TOOL_WEB] = next.toolWeb
+            p[KEY_TOOL_ANDROID] = next.toolAndroid
+            p[KEY_TOOL_SSH] = next.toolSsh
+            p[KEY_CASUAL_MODE] = next.casualMode
         }
     }
 }

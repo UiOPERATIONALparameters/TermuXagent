@@ -114,42 +114,36 @@ fun ChatScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        }
-    ) { inner ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(inner)
-        ) {
-            // Messages area takes all remaining space
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (state.messages.isEmpty()) {
-                    EmptyChatHint(
-                        needsConfig = state.needsConfig,
-                        onOpenSettings = onOpenSettings,
-                        onOpenWorkspace = onOpenWorkspace,
-                        onQuickPrompt = { vm.send(it) }
-                    )
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        items(state.messages, key = { it.id }) { msg ->
-                            MessageBubble(message = msg)
-                        }
-                        item { Spacer(Modifier.size(8.dp)) }
-                    }
-                }
-            }
-            // Composer at the bottom — AppRoot's NavHost already applies imePadding
+        },
+        bottomBar = {
             ComposerBar(
                 isRunning = state.isRunning,
                 onSend = { vm.send(it) },
                 onStop = { vm.stop() }
             )
+        }
+    ) { inner ->
+        Box(modifier = Modifier.fillMaxSize().padding(inner)) {
+            if (state.messages.isEmpty()) {
+                EmptyChatHint(
+                    needsConfig = state.needsConfig,
+                    onOpenSettings = onOpenSettings,
+                    onOpenWorkspace = onOpenWorkspace,
+                    onQuickPrompt = { vm.send(it) }
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(state.messages, key = { it.id }) { msg ->
+                        MessageBubble(message = msg)
+                    }
+                    item { Spacer(Modifier.size(8.dp)) }
+                }
+            }
         }
     }
 
