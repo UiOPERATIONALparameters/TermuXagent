@@ -76,13 +76,17 @@ class SshClient(
             channel.inputStream.copyTo(outStream, 8192)
         }
         val errThread = Thread {
-            channel.extErrStream.copyTo(errStream, 8192)
+            channel.errStream.copyTo(errStream, 8192)
         }
         outThread.start()
         errThread.start()
 
-        val finished = channel.waitFor(timeoutMs / 1000L)
-        if (!finished) {
+        // Poll for completion with timeout
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!channel.isClosed && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100)
+        }
+        if (!channel.isClosed) {
             channel.disconnect()
             outThread.join(2000)
             errThread.join(2000)
