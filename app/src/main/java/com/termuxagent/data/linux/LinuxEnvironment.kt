@@ -9,31 +9,25 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
 /**
  * Manages a PRoot-based Alpine Linux environment that gives the AI its own
  * real Linux computer — no root required.
  *
- * KEY INSIGHT: Android's app sandbox prevents this app from accessing
- * /data/data/com.termux/files/usr/bin/proot (Termux's private data dir).
- * So instead of relying on Termux's proot, we DOWNLOAD the proot binary
- * and its shared libraries from Termux's public package mirror and extract
- * them into THIS app's own data directory — which the app CAN access.
+ * How it works:
+ *  1. Fetches the Termux package index (Packages file) to find the CURRENT
+ *     URLs for proot, libtalloc, and libandroid-shmem .deb files. This is
+ *     version-agnostic — works regardless of what version Termux is on.
+ *  2. Downloads the .deb files from packages.termux.dev (public, no auth).
+ *  3. Parses the `ar` archive format manually to extract data.tar.xz.
+ *  4. Uses toybox tar to extract the proot binary + shared libraries.
+ *  5. Downloads Alpine minirootfs from dl-cdn.alpinelinux.org.
+ *  6. Extracts rootfs into app data dir.
+ *  7. Runs: LD_LIBRARY_PATH=lib/ proot -r rootfs/ -b /dev -b /proc -b /sys
+ *          -b workspace:/root/workspace /bin/sh -c "command"
  *
- * Architecture:
- *  1. Download proot .deb from packages.termux.dev (public URL, no auth)
- *  2. Extract the proot binary + required .so files from the .deb
- *  3. Download Alpine minirootfs from dl-cdn.alpinelinux.org
- *  4. Extract rootfs into app data dir
- *  5. Run: proot -r rootfs/ -b /dev -b /proc -b /sys -b workspace:/root/workspace
- *          /bin/sh -c "command"
- *
- * The proot binary from Termux is dynamically linked against libtalloc.
- * We download libtalloc too and set LD_LIBRARY_PATH so proot can find it.
- * The system linker (/system/lib64/linker64) handles the rest — all other
- * deps (libc, libm, libdl) are satisfied by Android's bionic libc.
+ * All files live in THIS app's own data directory (Android sandbox safe).
  */
 class LinuxEnvironment(private val context: Context) {
 
@@ -62,7 +56,6 @@ class LinuxEnvironment(private val context: Context) {
         if (!isReady) return null
         val wsRoot = com.termuxagent.data.workspace.WorkspaceManager.root.absolutePath
         val cwdArg = cwd?.let { "cd '$it' && " } ?: ""
-        // LD_LIBRARY_PATH so proot finds libtalloc.so
         val envPrefix = "LD_LIBRARY_PATH=${libDir.absolutePath} "
         val parts = listOf(
             envPrefix + prootBinary.absolutePath,
@@ -84,19 +77,40 @@ class LinuxEnvironment(private val context: Context) {
             return@withContext true
         }
         try {
-            // Step 1: Download + extract proot binary and libtalloc
-            _state.value = SetupState.Downloading(0, "Downloading PRoot binary…")
-            downloadAndExtractProot()
+            _state.value = SetupState.Downloading(0, "Resolving package URLs…")
+            val urls = resolvePackageUrls()
 
-            // Step 2: Download Alpine rootfs
-            _state.value = SetupState.Downloading(30, "Downloading Alpine Linux rootfs…")
+            _state.value = SetupState.Downloading(5, "Downloading PRoot binary…")
+            val prootDeb = downloadDeb(urls.getValue("proot"), "proot.deb") { pct ->
+                _state.value = SetupState.Downloading(5 + pct / 10, "Downloading PRoot binary… ${pct}%")
+            }
+
+            _state.value = SetupState.Downloading(20, "Downloading libtalloc…")
+            val tallocDeb = downloadDeb(urls.getValue("libtalloc"), "libtalloc.deb") { pct ->
+                _state.value = SetupState.Downloading(20 + pct / 10, "Downloading libtalloc… ${pct}%")
+            }
+
+            _state.value = SetupState.Downloading(25, "Downloading libandroid-shmem…")
+            val shmemDeb = downloadDeb(urls.getValue("libandroid-shmem"), "libandroid-shmem.deb") { pct ->
+                _state.value = SetupState.Downloading(25 + pct / 5, "Downloading libandroid-shmem… ${pct}%")
+            }
+
+            _state.value = SetupState.Extracting(30, "Extracting PRoot binary…")
+            extractDeb(prootDeb, "proot", prootBinary, "usr/bin/proot")
+            prootBinary.setExecutable(true, true)
+
+            _state.value = SetupState.Extracting(32, "Extracting libtalloc…")
+            extractDeb(tallocDeb, "libtalloc", File(libDir, "libtalloc.so.2"), "usr/lib/libtalloc.so.2")
+
+            _state.value = SetupState.Extracting(34, "Extracting libandroid-shmem…")
+            extractDeb(shmemDeb, "libandroid-shmem", File(libDir, "libandroid-shmem.so"), "usr/lib/libandroid-shmem.so")
+
+            _state.value = SetupState.Downloading(35, "Downloading Alpine Linux rootfs…")
             val rootfsArchive = downloadAlpineRootfs()
 
-            // Step 3: Extract rootfs
             _state.value = SetupState.Extracting(60, "Extracting Alpine rootfs…")
             extractRootfs(rootfsArchive)
 
-            // Step 4: Configure
             _state.value = SetupState.Extracting(90, "Configuring Linux environment…")
             configureRootfs()
 
@@ -110,98 +124,97 @@ class LinuxEnvironment(private val context: Context) {
     }
 
     /**
-     * Download the proot .deb from Termux's package mirror and extract the
-     * binary + libtalloc.so. A .deb is an `ar` archive containing data.tar.xz.
-     * We parse the ar format manually (it's simple) and extract with toybox tar.
+     * Fetch the Termux Packages index and find the current .deb URLs for
+     * proot, libtalloc, and libandroid-shmem. This is version-agnostic —
+     * it always finds the latest version, so it won't break on updates.
      */
-    private fun downloadAndExtractProot() {
-        val prootDeb = File(baseDir, "proot.deb")
-        val tallocDeb = File(baseDir, "libtalloc.deb")
+    private fun resolvePackageUrls(): Map<String, String> {
+        val baseUrl = "https://packages.termux.dev/apt/termux-main/"
+        val packagesUrl = "${baseUrl}dists/stable/main/binary-aarch64/Packages"
 
-        // Download proot .deb
-        if (!prootDeb.exists() || prootDeb.length() < 10000) {
-            downloadFile(
-                "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.0-55_aarch64.deb",
-                prootDeb
-            ) { percent ->
-                _state.value = SetupState.Downloading(percent / 4, "Downloading PRoot binary… ${percent}%")
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val req = Request.Builder().url(packagesUrl).get().build()
+        val packagesText = client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw RuntimeException("Failed to fetch package index: HTTP ${resp.code}")
+            resp.body?.string() ?: throw RuntimeException("Empty package index")
+        }
+
+        val wanted = setOf("proot", "libtalloc", "libandroid-shmem")
+        val result = mutableMapOf<String, String>()
+        var currentPackage: String? = null
+        var currentFilename: String? = null
+
+        for (line in packagesText.lines()) {
+            when {
+                line.startsWith("Package: ") -> {
+                    currentPackage = line.removePrefix("Package: ").trim()
+                    currentFilename = null
+                }
+                line.startsWith("Filename: ") -> {
+                    currentFilename = line.removePrefix("Filename: ").trim()
+                }
+                line.isBlank() -> {
+                    // End of package entry
+                    if (currentPackage in wanted && currentFilename != null) {
+                        result[currentPackage] = baseUrl + currentFilename
+                    }
+                    currentPackage = null
+                    currentFilename = null
+                }
             }
         }
 
-        // Download libtalloc .deb (proot depends on it)
-        if (!tallocDeb.exists() || tallocDeb.length() < 1000) {
-            downloadFile(
-                "https://packages.termux.dev/apt/termux-main/pool/main/libt/libtalloc/libtalloc_2.4.1-1_aarch64.deb",
-                tallocDeb
-            ) { percent ->
-                _state.value = SetupState.Downloading(25 + percent / 8, "Downloading libtalloc… ${percent}%")
+        for (pkg in wanted) {
+            if (pkg !in result) {
+                throw RuntimeException("Could not find '$pkg' in Termux package index")
             }
         }
-
-        // Extract proot binary from .deb
-        _state.value = SetupState.Extracting(28, "Extracting PRoot binary…")
-        extractDeb(prootDeb, "proot", prootBinary, "usr/bin/proot")
-        prootBinary.setExecutable(true, true)
-
-        // Extract libtalloc.so from .deb
-        _state.value = SetupState.Extracting(29, "Extracting libtalloc…")
-        extractDeb(tallocDeb, "libtalloc", File(libDir, "libtalloc.so.2"), "usr/lib/libtalloc.so.2")
+        return result
     }
 
-    /**
-     * Extract a specific file from a .deb package.
-     * .deb format: ar archive containing:
-     *   - debian-binary
-     *   - control.tar.gz (or .xz)
-     *   - data.tar.xz (or .gz) — this contains the actual files
-     *
-     * We parse the ar header to find data.tar.*, extract it, then use toybox
-     * tar to extract the specific file we need.
-     */
+    private fun downloadDeb(url: String, filename: String, onProgress: (Int) -> Unit): File {
+        val dest = File(baseDir, filename)
+        // Cache: if already downloaded with reasonable size, skip
+        if (dest.exists() && dest.length() > 1000) return dest
+        downloadFile(url, dest, onProgress)
+        return dest
+    }
+
     private fun extractDeb(debFile: File, label: String, outputFile: File, innerPath: String) {
         val tempDir = File(baseDir, "tmp_$label").apply { mkdirs() }
         try {
-            // Parse ar archive to find data.tar.*
             val dataTar = parseArAndExtractData(debFile, tempDir)
-            if (dataTar == null) {
-                throw RuntimeException("Could not find data.tar in .deb for $label")
-            }
+                ?: throw RuntimeException("Could not find data.tar in .deb for $label")
 
             // Extract the specific file from data.tar using toybox tar
-            // The path inside data.tar is like "./usr/bin/proot" or "./usr/lib/libtalloc.so.2"
+            // Try both ./path and path formats
             val proc = ProcessBuilder(
                 "/system/bin/tar", "-xf", dataTar.absolutePath,
                 "-C", tempDir.absolutePath,
-                "./$innerPath", ".$innerPath", innerPath
+                "./$innerPath", innerPath
             ).redirectErrorStream(true).start()
             proc.waitFor(30, TimeUnit.SECONDS)
-            // tar might fail silently if the exact path doesn't match — try both ./ and no ./
+
             val extracted = File(tempDir, innerPath)
-            if (!extracted.exists()) {
-                // Try without ./
-                val alt = File(tempDir, "./$innerPath")
-                if (alt.exists()) {
-                    alt.copyTo(outputFile, overwrite = true)
-                } else {
-                    // List what's in the temp dir for debugging
+            val altExtracted = File(tempDir, "./$innerPath")
+            val source = when {
+                extracted.exists() -> extracted
+                altExtracted.exists() -> altExtracted
+                else -> {
+                    // List what's actually in the temp dir for debugging
                     val contents = tempDir.walkTopDown().take(20).joinToString("\n")
                     throw RuntimeException("Could not find $innerPath in .deb. Contents:\n$contents")
                 }
-            } else {
-                extracted.copyTo(outputFile, overwrite = true)
             }
+            source.copyTo(outputFile, overwrite = true)
         } finally {
             tempDir.deleteRecursively()
         }
     }
 
-    /**
-     * Parse an `ar` archive (the .deb format) and extract the data.tar.* member.
-     * ar format:
-     *   - Magic: "!<arch>\n" (8 bytes)
-     *   - File entries, each with a 60-byte header followed by file data
-     *   - Header: name(16) / mod(12) / uid(6) / gid(6) / mode(8) / size(10) / `\x60\n`
-     */
     private fun parseArAndExtractData(debFile: File, outputDir: File): File? {
         val data = debFile.readBytes()
         val magic = String(data, 0, 8, Charsets.US_ASCII)
@@ -211,7 +224,6 @@ class LinuxEnvironment(private val context: Context) {
 
         var pos = 8
         while (pos + 60 <= data.size) {
-            // Parse 60-byte header
             val header = String(data, pos, 60, Charsets.US_ASCII)
             val name = header.substring(0, 16).trim()
             val sizeStr = header.substring(48, 58).trim()
@@ -220,7 +232,6 @@ class LinuxEnvironment(private val context: Context) {
             pos += 60
             if (pos + size > data.size) break
 
-            // Extract data.tar.* member
             if (name.startsWith("data.tar")) {
                 val outFile = File(outputDir, name)
                 outFile.outputStream().use { out ->
@@ -228,7 +239,6 @@ class LinuxEnvironment(private val context: Context) {
                 }
                 return outFile
             }
-            // Skip to next entry (ar members are padded to 2-byte boundaries)
             pos += size.toInt()
             if (size % 2 != 0L) pos++
         }
@@ -241,7 +251,7 @@ class LinuxEnvironment(private val context: Context) {
 
         val url = "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.3-aarch64.tar.gz"
         downloadFile(url, archive) { percent ->
-            _state.value = SetupState.Downloading(30 + percent * 3 / 10, "Downloading Alpine rootfs… ${percent}%")
+            _state.value = SetupState.Downloading(35 + percent * 25 / 100, "Downloading Alpine rootfs… ${percent}%")
         }
         return archive
     }
@@ -307,13 +317,4 @@ class LinuxEnvironment(private val context: Context) {
     fun storageUsageMB(): Long {
         return baseDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } / (1024 * 1024)
     }
-
-    /**
-     * Check if Termux is installed (informational — we don't use Termux's
-     * proot anymore, we download our own. But it's useful for the user to know.)
-     */
-    fun isTermuxInstalled(): Boolean = runCatching {
-        context.packageManager.getPackageInfo("com.termux", 0)
-        true
-    }.getOrDefault(false)
 }
