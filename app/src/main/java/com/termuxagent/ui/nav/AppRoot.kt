@@ -3,6 +3,7 @@ package com.termuxagent.ui.nav
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.FolderOpen
@@ -80,7 +81,9 @@ fun AppRoot() {
             NavHost(
                 navController = nav,
                 startDestination = Routes.CHAT,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .imePadding()
             ) {
                 composable(Routes.CHAT) {
                     ChatScreen(

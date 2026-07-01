@@ -29,7 +29,11 @@ data class EditableFields(
     val model: String = "",
     val systemPrompt: String = "",
     val exaApiKey: String = "",
-    val firecrawlApiKey: String = ""
+    val firecrawlApiKey: String = "",
+    val sshHost: String = "",
+    val sshUser: String = "",
+    val sshPassword: String = "",
+    val sshWorkingDir: String = ""
 )
 
 data class SettingsUiState(
@@ -70,7 +74,11 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                                 model = s.model,
                                 systemPrompt = s.systemPrompt,
                                 exaApiKey = s.exaApiKey,
-                                firecrawlApiKey = s.firecrawlApiKey
+                                firecrawlApiKey = s.firecrawlApiKey,
+                                sshHost = s.sshHost,
+                                sshUser = s.sshUser,
+                                sshPassword = s.sshPassword,
+                                sshWorkingDir = s.sshWorkingDir
                             )
                         )
                     }
@@ -144,28 +152,57 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setDynamicColor(v: Boolean) = updateImmediate { it.copy(dynamicColor = v) }
     fun setWebSearchEnabled(v: Boolean) = updateImmediate { it.copy(webSearchEnabled = v) }
     fun setWebSearchProvider(v: String) = updateImmediate { it.copy(webSearchProvider = v) }
+    fun setSshEnabled(v: Boolean) = updateImmediate { it.copy(sshEnabled = v) }
+    fun setSshPort(v: Int) = updateImmediate { it.copy(sshPort = v) }
 
-    private val linuxEnvironment = com.termuxagent.data.linux.LinuxEnvironment(context)
-    val linuxState = linuxEnvironment.state
+    fun setSshHost(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(sshHost = v)) }
+        schedulePersist { s, e -> s.copy(sshHost = e.sshHost) }
+    }
+    fun setSshUser(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(sshUser = v)) }
+        schedulePersist { s, e -> s.copy(sshUser = e.sshUser) }
+    }
+    fun setSshPassword(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(sshPassword = v)) }
+        schedulePersist { s, e -> s.copy(sshPassword = e.sshPassword) }
+    }
+    fun setSshWorkingDir(v: String) {
+        _mutable.update { it.copy(editing = it.editing.copy(sshWorkingDir = v)) }
+        schedulePersist { s, e -> s.copy(sshWorkingDir = e.sshWorkingDir) }
+    }
 
-    fun setUseLinuxEnv(v: Boolean) {
-        updateImmediate { it.copy(useLinuxEnv = v) }
-        if (v && !linuxEnvironment.isReady) {
-            viewModelScope.launch {
-                linuxEnvironment.setup()
+    private var testSshJob: Job? = null
+    fun testSshConnection() {
+        val e = _mutable.value.editing
+        val s = _mutable.value.settings
+        if (e.sshHost.isBlank() || e.sshUser.isBlank()) {
+            _mutable.update { it.copy(testResult = "Set SSH host and user first.") }
+            return
+        }
+        _mutable.update { it.copy(testing = true, testResult = null) }
+        testSshJob?.cancel()
+        testSshJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val ssh = com.termuxagent.data.ssh.SshClient(
+                        host = e.sshHost,
+                        port = s.sshPort,
+                        user = e.sshUser,
+                        password = e.sshPassword,
+                        workingDir = e.sshWorkingDir
+                    )
+                    if (!ssh.connect()) {
+                        return@runCatching "Connection failed"
+                    }
+                    val res = ssh.execute("uname -a && echo '---' && whoami && echo '---' && pwd", 15000)
+                    ssh.close()
+                    if (res.exitCode == 0) "OK — ${res.output.take(200)}" else "Failed (exit ${res.exitCode}): ${res.error.take(200)}"
+                }.getOrElse { err -> "Error: ${err.message}" }
             }
-        }
-    }
-
-    fun resetLinuxEnv() {
-        viewModelScope.launch {
-            linuxEnvironment.reset()
-        }
-    }
-
-    fun retryLinuxSetup() {
-        viewModelScope.launch {
-            linuxEnvironment.setup()
+            _mutable.update {
+                it.copy(testing = false, testResult = result)
+            }
         }
     }
 

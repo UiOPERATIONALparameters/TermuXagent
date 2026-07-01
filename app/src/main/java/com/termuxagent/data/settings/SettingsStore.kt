@@ -27,12 +27,18 @@ data class AppSettings(
     val webSearchProvider: String = "duckduckgo",
     val exaApiKey: String = "",
     val firecrawlApiKey: String = "",
-    val useLinuxEnv: Boolean = false
+    val sshEnabled: Boolean = false,
+    val sshHost: String = "",
+    val sshPort: Int = 22,
+    val sshUser: String = "",
+    val sshPassword: String = "",
+    val sshWorkingDir: String = ""
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+    val isSshConfigured: Boolean get() = sshHost.isNotBlank() && sshUser.isNotBlank()
 }
 
-const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace and — when the Linux environment is enabled — your own Alpine Linux computer with a package manager (apk), Python, Node, Ruby, GCC, Git, and anything you install.
+const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace and — when Cloud Linux is configured — a full remote Linux computer accessible via SSH.
 
 You are designed to be fully autonomous. Like a senior engineer with root access to their own machine, you should:
 1. PLAN: Before acting, briefly state your plan (1-3 sentences). What's the goal? What steps will you take? What tools will you use?
@@ -41,14 +47,15 @@ You are designed to be fully autonomous. Like a senior engineer with root access
 4. ITERATE: Continue until the task is done or you hit a real blocker.
 5. SUMMARIZE: When done, give a tight summary: what you built, where the files are, how to use them.
 
-When the Linux environment is enabled:
-- You have Alpine Linux with `apk` package manager. Use `apk add python3 nodejs ruby gcc git curl wget make cmake` to install anything.
-- Your workspace is mounted at /root/workspace inside Linux. Files there are shared with the Android app.
-- You can compile code, run servers, install packages — treat it like your own computer.
+When Cloud Linux (SSH) is enabled:
+- Your shell commands run on a REMOTE Linux machine via SSH. You have full Linux: apt/yum/apk package manager, Python, Node, Ruby, GCC, Git, curl, wget, make, cmake — everything.
+- Use 'which python3' or 'which node' to check what's installed. Install missing tools with the system package manager.
+- Files you create with write_file are LOCAL (on the phone). To get them onto the remote machine, use shell with 'cat > file << EOF' or similar. To get files FROM the remote machine, use shell with 'cat file'.
+- Treat the remote machine as your own computer. You can install packages, write code, run servers, compile — anything.
 
-When Linux env is NOT enabled:
+When Cloud Linux is NOT enabled:
 - You have Android's toybox: ls, cat, grep, sed, awk, find, tar, bc, tr, cut, tee, xargs, etc.
-- Use list_interpreters to check what's available. If Python/Node aren't there, write shell scripts instead, or tell the user to enable the Linux environment.
+- Use list_interpreters to check what's available. If Python/Node aren't there, write shell scripts instead, or tell the user to enable Cloud Linux in Settings.
 
 You have web_search and web_read tools. ALWAYS search the web before answering questions about:
 - Recent events, news, current API versions
@@ -59,11 +66,10 @@ After searching, use web_read to fetch and understand specific pages.
 CRITICAL RULES:
 - Never ask the user to do something you can do yourself. If a file needs creating, create it. If a package needs installing, install it. If code needs running, run it.
 - If something fails, debug it. Read the error. Try a different approach. Don't give up after one try.
-- Be honest about hard limits (e.g., can't access other apps' data on non-rooted Android). But try everything else first.
-- Keep file paths workspace-relative. The workspace root is the cwd.
+- Be honest about hard limits. But try everything else first.
 - When you're done, give the user a short summary. Markdown is fine.
 
-Tone: direct, technical, no filler. You're an engineer, not a assistant."""
+Tone: direct, technical, no filler. You're an engineer, not an assistant."""
 
 object SettingsStore {
     private val KEY_API_KEY = stringPreferencesKey("api_key")
@@ -79,6 +85,12 @@ object SettingsStore {
     private val KEY_EXA_API_KEY = stringPreferencesKey("exa_api_key")
     private val KEY_FIRECRAWL_API_KEY = stringPreferencesKey("firecrawl_api_key")
     private val KEY_USE_LINUX_ENV = booleanPreferencesKey("use_linux_env")
+    private val KEY_SSH_ENABLED = booleanPreferencesKey("ssh_enabled")
+    private val KEY_SSH_HOST = stringPreferencesKey("ssh_host")
+    private val KEY_SSH_PORT = intPreferencesKey("ssh_port")
+    private val KEY_SSH_USER = stringPreferencesKey("ssh_user")
+    private val KEY_SSH_PASSWORD = stringPreferencesKey("ssh_password")
+    private val KEY_SSH_WORKING_DIR = stringPreferencesKey("ssh_working_dir")
 
     fun flow(context: Context): Flow<AppSettings> = context.settingsDataStore.data.map { p ->
         AppSettings(
@@ -94,7 +106,12 @@ object SettingsStore {
             webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
             exaApiKey = p[KEY_EXA_API_KEY] ?: "",
             firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: "",
-            useLinuxEnv = p[KEY_USE_LINUX_ENV] ?: false
+            sshEnabled = p[KEY_SSH_ENABLED] ?: false,
+            sshHost = p[KEY_SSH_HOST] ?: "",
+            sshPort = p[KEY_SSH_PORT] ?: 22,
+            sshUser = p[KEY_SSH_USER] ?: "",
+            sshPassword = p[KEY_SSH_PASSWORD] ?: "",
+            sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: ""
         )
     }
 
@@ -113,7 +130,12 @@ object SettingsStore {
                 webSearchProvider = p[KEY_WEB_SEARCH_PROVIDER] ?: "duckduckgo",
                 exaApiKey = p[KEY_EXA_API_KEY] ?: "",
                 firecrawlApiKey = p[KEY_FIRECRAWL_API_KEY] ?: "",
-                useLinuxEnv = p[KEY_USE_LINUX_ENV] ?: false
+                sshEnabled = p[KEY_SSH_ENABLED] ?: false,
+                sshHost = p[KEY_SSH_HOST] ?: "",
+                sshPort = p[KEY_SSH_PORT] ?: 22,
+                sshUser = p[KEY_SSH_USER] ?: "",
+                sshPassword = p[KEY_SSH_PASSWORD] ?: "",
+                sshWorkingDir = p[KEY_SSH_WORKING_DIR] ?: ""
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()
@@ -128,7 +150,12 @@ object SettingsStore {
             p[KEY_WEB_SEARCH_PROVIDER] = next.webSearchProvider
             p[KEY_EXA_API_KEY] = next.exaApiKey.trim()
             p[KEY_FIRECRAWL_API_KEY] = next.firecrawlApiKey.trim()
-            p[KEY_USE_LINUX_ENV] = next.useLinuxEnv
+            p[KEY_SSH_ENABLED] = next.sshEnabled
+            p[KEY_SSH_HOST] = next.sshHost.trim()
+            p[KEY_SSH_PORT] = next.sshPort
+            p[KEY_SSH_USER] = next.sshUser.trim()
+            p[KEY_SSH_PASSWORD] = next.sshPassword
+            p[KEY_SSH_WORKING_DIR] = next.sshWorkingDir.trim()
         }
     }
 }

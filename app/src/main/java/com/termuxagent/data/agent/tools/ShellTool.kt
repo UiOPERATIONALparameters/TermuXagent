@@ -1,6 +1,7 @@
 package com.termuxagent.data.agent.tools
 
-import com.termuxagent.data.linux.LinuxEnvironment
+import com.termuxagent.data.settings.AppSettings
+import com.termuxagent.data.ssh.SshClient
 import com.termuxagent.data.workspace.WorkspaceManager
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -9,23 +10,23 @@ import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 /**
- * Run a shell command. When a [LinuxEnvironment] is provided and ready,
- * commands run inside the Alpine Linux rootfs via PRoot — giving the agent
- * access to apk, python3, nodejs, ruby, gcc, git, etc.
+ * Run a shell command. When SSH (Cloud Linux) is configured and enabled,
+ * commands run on the REMOTE Linux machine via SSH — giving the agent
+ * full Linux with package manager, Python, Node, GCC, etc.
  *
- * When no Linux env is available (or not yet set up), falls back to
- * Android's /system/bin/sh + toybox.
+ * When SSH is not configured, falls back to Android's local shell
+ * (/system/bin/sh + toybox).
  */
 class ShellTool(
     private val ws: WorkspaceManager,
-    private val linuxEnv: LinuxEnvironment? = null
+    private val settings: AppSettings
 ) : AgentTool {
     override val name = "shell"
-    override val description = """Run a shell command. When Linux env is enabled, runs inside Alpine Linux (apk, python3, nodejs, ruby, gcc, git, curl, wget, etc. all available via 'apk add'). Otherwise uses Android's toybox (ls, cat, grep, sed, awk, find, tar, bc, tr, cut, tee, xargs, etc.).
-The workspace is mounted at /root/workspace inside Linux env. Returns combined stdout+stderr + exit code. Output truncated to ~20KB."""
+    override val description = """Run a shell command. ${if (settings.sshEnabled && settings.isSshConfigured) "Cloud Linux is ENABLED — commands run on a remote Linux machine via SSH. You have full Linux: apt/yum/apk, Python, Node, Ruby, GCC, Git, curl, wget, etc." else "Runs locally on Android with toybox (ls, cat, grep, sed, awk, find, tar, bc, tr, cut, tee, xargs, etc.)."}
+Returns combined stdout+stderr + exit code. Output truncated to ~20KB."""
     override val parametersSchema = objSchema(
         properties = mapOf(
-            "command" to strProp("The shell command to run, e.g. 'ls -la', 'python3 main.py', or 'apk add python3 && python3 script.py'."),
+            "command" to strProp("The shell command to run."),
             "timeout_ms" to intProp("Max runtime in milliseconds.", min = 100, max = 60_000)
         ),
         required = listOf("command")
@@ -37,23 +38,57 @@ The workspace is mounted at /root/workspace inside Linux env. Returns combined s
         val timeoutMs = (args["timeout_ms"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30_000)
             .coerceIn(100, 60_000)
 
-        // Decide: Linux env or Android shell?
-        val useLinux = linuxEnv?.isReady == true
-        val actualCommand = if (useLinux) {
-            linuxEnv!!.buildProotCommand(command) ?: command
-        } else {
-            command
+        // If SSH is enabled and configured, run on remote machine
+        if (settings.sshEnabled && settings.isSshConfigured) {
+            return executeViaSsh(command, timeoutMs)
         }
 
+        // Otherwise run locally on Android
+        return executeLocally(command, timeoutMs)
+    }
+
+    private fun executeViaSsh(command: String, timeoutMs: Int): ToolResult {
+        val ssh = SshClient(
+            host = settings.sshHost,
+            port = settings.sshPort,
+            user = settings.sshUser,
+            password = settings.sshPassword,
+            workingDir = settings.sshWorkingDir
+        )
+        if (!ssh.connect()) {
+            return ToolResult(
+                false,
+                "SSH connection failed to ${settings.sshUser}@${settings.sshHost}:${settings.sshPort}. Check credentials in Settings.",
+                meta = mapOf("command" to command, "env" to "ssh", "exit" to "-1")
+            )
+        }
+        ssh.use {
+            val result = it.execute(command, timeoutMs)
+            val combined = buildString {
+                if (result.output.isNotBlank()) append(result.output)
+                if (result.error.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append(result.error)
+                }
+                append("\n[exit code: ${result.exitCode}] [ssh ${settings.sshHost}]")
+            }.trim()
+            return ToolResult(
+                ok = result.exitCode == 0,
+                output = combined,
+                meta = mapOf("command" to command, "exit" to result.exitCode.toString(), "env" to "ssh")
+            )
+        }
+    }
+
+    private fun executeLocally(command: String, timeoutMs: Int): ToolResult {
         val cwd = ws.root
-        val builder = ProcessBuilder("/system/bin/sh", "-c", actualCommand)
+        val builder = ProcessBuilder("/system/bin/sh", "-c", command)
             .directory(cwd)
             .redirectErrorStream(true)
         builder.environment()["HOME"] = cwd.absolutePath
         builder.environment()["TERM"] = "xterm-256color"
         builder.environment()["LANG"] = "en_US.UTF-8"
         builder.environment()["LC_ALL"] = "en_US.UTF-8"
-        // If Termux is installed, prepend its bin dir to PATH
         val termuxBin = "/data/data/com.termux/files/usr/bin"
         if (java.io.File(termuxBin).exists()) {
             val currentPath = builder.environment()["PATH"] ?: ""
@@ -78,20 +113,19 @@ The workspace is mounted at /root/workspace inside Linux env. Returns combined s
                 total += read
             }
             val finished = proc.waitFor(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
-            val envTag = if (useLinux) " [linux]" else " [android]"
             if (!finished) {
                 proc.destroyForcibly()
                 ToolResult(
                     ok = false,
-                    output = stripAnsi(out.toString()) + "\n[TIMEOUT after ${timeoutMs}ms — process killed]$envTag",
-                    meta = mapOf("command" to command, "exit" to "-1", "env" to if (useLinux) "linux" else "android")
+                    output = stripAnsi(out.toString()) + "\n[TIMEOUT after ${timeoutMs}ms — process killed] [android]",
+                    meta = mapOf("command" to command, "exit" to "-1", "env" to "android")
                 )
             } else {
                 val exit = proc.exitValue()
                 ToolResult(
                     ok = exit == 0,
-                    output = stripAnsi("$out\n[exit code: $exit]$envTag".trim()),
-                    meta = mapOf("command" to command, "exit" to exit.toString(), "env" to if (useLinux) "linux" else "android")
+                    output = stripAnsi("$out\n[exit code: $exit] [android]".trim()),
+                    meta = mapOf("command" to command, "exit" to exit.toString(), "env" to "android")
                 )
             }
         }.getOrElse { e ->

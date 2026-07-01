@@ -100,10 +100,9 @@ private fun AssistantRow(msg: UiMessage.Assistant, modifier: Modifier) {
                     when (block) {
                         is AssistantBlock.Text -> {
                             if (block.text.isNotBlank()) {
-                                Text(
-                                    text = block.text + if (block.isStreaming) " ▋" else "",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onBackground,
+                                val displayText = block.text + if (block.isStreaming) " ▋" else ""
+                                MarkdownText(
+                                    markdown = displayText,
                                     modifier = Modifier.padding(vertical = 2.dp)
                                 )
                             }

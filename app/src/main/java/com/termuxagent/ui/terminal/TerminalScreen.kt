@@ -117,12 +117,10 @@ fun TerminalScreen(
             }
         }
 
-        // Input bar — imePadding pushes it above the keyboard
+        // Input bar
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .navigationBarsPadding(),
+                .fillMaxWidth(),
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 0.dp
         ) {

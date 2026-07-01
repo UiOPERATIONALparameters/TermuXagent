@@ -14,8 +14,8 @@ android {
         applicationId = "com.termuxagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "2.2.0"
+        versionCode = 10
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -126,6 +126,18 @@ dependencies {
     // Android's toybox tar can't handle GNU tar format (which Alpine rootfs
     // and .deb data.tar use). This eliminates an entire class of bugs.
     implementation("org.apache.commons:commons-compress:1.26.1")
+
+    // JSch — SSH client for cloud-based Linux environment.
+    // When the user configures SSH credentials, the AI's shell tool connects
+    // to a remote Linux machine (Oracle Cloud free tier, GitHub Codespaces,
+    // any VPS) and runs commands there. This gives the AI a real Linux computer.
+    implementation("com.github.mwiede:jsch:0.2.20")
+
+    // CommonMark — industry-standard markdown parser with GFM table support.
+    // Replaces the broken custom renderer. Handles bold, italic, code, tables,
+    // lists, links, blockquotes — everything the AI actually outputs.
+    implementation("org.commonmark:commonmark:0.22.0")
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.22.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

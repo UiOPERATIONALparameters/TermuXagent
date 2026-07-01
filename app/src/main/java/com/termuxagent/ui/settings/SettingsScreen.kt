@@ -396,10 +396,9 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Linux Environment ─────────────────────────────────────────
-            item { SectionTitle("Linux Environment") }
+            // ── Cloud Linux (SSH) ─────────────────────────────────────────
+            item { SectionTitle("Cloud Linux (SSH)") }
             item {
-                val linuxState by vm.linuxState.collectAsState()
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -407,68 +406,98 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Use Linux environment", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                            Text("Enable Cloud Linux", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
                             Text(
-                                "Gives the AI a real Alpine Linux with apk/pip/npm. Downloads ~15MB on first enable.",
+                                "Connect the AI to a remote Linux machine via SSH. It gets full Linux: Python, Node, GCC, Git, apt/apk — anything.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = s.useLinuxEnv, onCheckedChange = vm::setUseLinuxEnv)
+                        Switch(checked = s.sshEnabled, onCheckedChange = vm::setSshEnabled)
                     }
-
-                    // Show setup state
-                    when (linuxState) {
-                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.NotStarted -> {
-                            if (s.useLinuxEnv) {
-                                Text(
-                                    "Toggle is on but setup hasn't started. Tap 'Set up now'.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                androidx.compose.material3.TextButton(onClick = { vm.retryLinuxSetup() }) {
-                                    Text("Set up now")
+                    if (s.sshEnabled) {
+                        OutlinedTextField(
+                            value = e.sshHost,
+                            onValueChange = vm::setSshHost,
+                            label = { Text("Host") },
+                            placeholder = { Text("192.168.1.100 or myserver.com") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = e.sshUser,
+                                onValueChange = vm::setSshUser,
+                                label = { Text("Username") },
+                                placeholder = { Text("root or ubuntu") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = e.sshPort.toString(),
+                                onValueChange = { v -> v.toIntOrNull()?.let { vm.setSshPort(it) } },
+                                label = { Text("Port") },
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(0.4f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = e.sshPassword,
+                            onValueChange = vm::setSshPassword,
+                            label = { Text("Password") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = e.sshWorkingDir,
+                            onValueChange = vm::setSshWorkingDir,
+                            label = { Text("Working directory (optional)") },
+                            placeholder = { Text("/home/user/workspace") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        // Test connection
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { if (!state.testing) vm.testSshConnection() },
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (state.testing) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                    } else {
+                                        Icon(Icons.Rounded.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                                    }
+                                    Text(
+                                        if (state.testing) "Testing…" else "Test SSH",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
                                 }
                             }
-                        }
-                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Downloading -> {
-                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Downloading
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text(st.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Extracting -> {
-                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Extracting
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text(st.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Ready -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                            state.testResult?.let {
                                 Text(
-                                    "Linux environment ready. The AI has apk, python3 (after 'apk add python3'), bash, etc.",
+                                    text = it.take(100),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = if (it.startsWith("OK")) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
                                 )
                             }
-                            androidx.compose.material3.TextButton(onClick = { vm.resetLinuxEnv() }) {
-                                Text("Reset Linux env")
-                            }
                         }
-                        is com.termuxagent.data.linux.LinuxEnvironment.SetupState.Failed -> {
-                            val st = linuxState as com.termuxagent.data.linux.LinuxEnvironment.SetupState.Failed
-                            Text(
-                                "Setup failed: ${st.error}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            androidx.compose.material3.TextButton(onClick = { vm.retryLinuxSetup() }) {
-                                Text("Retry setup")
-                            }
-                        }
+                        Text(
+                            "Free cloud Linux options: Oracle Cloud Free Tier (always-free ARM VM, 4 cores, 24GB RAM), GitHub Codespaces (120 hrs/month), Google Cloud Free Tier (e2-micro). Or use any VPS.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
