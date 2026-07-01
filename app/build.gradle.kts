@@ -14,8 +14,8 @@ android {
         applicationId = "com.termuxagent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.1.1"
+        versionCode = 8
+        versionName = "2.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -117,6 +117,10 @@ dependencies {
 
     // JSON
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+    // XZ decompression — needed to extract proot from Termux's .deb packages
+    // (they use data.tar.xz, which Android's toybox tar can't decompress)
+    implementation("org.tukaani:xz:1.9")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

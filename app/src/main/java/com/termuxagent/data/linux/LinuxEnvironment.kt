@@ -191,10 +191,26 @@ class LinuxEnvironment(private val context: Context) {
             val dataTar = parseArAndExtractData(debFile, tempDir)
                 ?: throw RuntimeException("Could not find data.tar in .deb for $label")
 
+            // dataTar might be .xz compressed. Android's toybox tar doesn't
+            // support xz, so decompress with the tukaani xz library first.
+            val plainTar = if (dataTar.name.endsWith(".xz")) {
+                _state.value = SetupState.Extracting(31, "Decompressing $label…")
+                val outFile = File(tempDir, "data.tar")
+                java.io.FileInputStream(dataTar).use { fis ->
+                    org.tukaani.xz.XZInputStream(fis).use { xzIn ->
+                        outFile.outputStream().use { out ->
+                            xzIn.copyTo(out)
+                        }
+                    }
+                }
+                outFile
+            } else {
+                dataTar
+            }
+
             // Extract the specific file from data.tar using toybox tar
-            // Try both ./path and path formats
             val proc = ProcessBuilder(
-                "/system/bin/tar", "-xf", dataTar.absolutePath,
+                "/system/bin/tar", "-xf", plainTar.absolutePath,
                 "-C", tempDir.absolutePath,
                 "./$innerPath", innerPath
             ).redirectErrorStream(true).start()
@@ -206,7 +222,6 @@ class LinuxEnvironment(private val context: Context) {
                 extracted.exists() -> extracted
                 altExtracted.exists() -> altExtracted
                 else -> {
-                    // List what's actually in the temp dir for debugging
                     val contents = tempDir.walkTopDown().take(20).joinToString("\n")
                     throw RuntimeException("Could not find $innerPath in .deb. Contents:\n$contents")
                 }
