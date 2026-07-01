@@ -229,7 +229,7 @@ class LinuxEnvironment(private val context: Context) {
                 return outFile
             }
             // Skip to next entry (ar members are padded to 2-byte boundaries)
-            pos += size
+            pos += size.toInt()
             if (size % 2 != 0L) pos++
         }
         return null
