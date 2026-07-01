@@ -271,9 +271,17 @@ private class CollectingVisitor : AbstractVisitor() {
         blocks.add(MdBlock.HRule)
     }
 
-    // Tables (GFM extension)
-    override fun visit(node: org.commonmark.ext.gfm.tables.TableBlock) {
-        // Collect headers and rows from the table
+    // Handle GFM table nodes — AbstractVisitor doesn't have visit(TableBlock)
+    // so we check the node type in the generic visit method
+    override fun visit(node: org.commonmark.node.Node?) {
+        if (node is org.commonmark.ext.gfm.tables.TableBlock) {
+            visitTableBlock(node)
+        } else {
+            super.visit(node)
+        }
+    }
+
+    private fun visitTableBlock(node: org.commonmark.ext.gfm.tables.TableBlock) {
         val headers = mutableListOf<String>()
         val rows = mutableListOf<List<String>>()
         var child = node.firstChild
