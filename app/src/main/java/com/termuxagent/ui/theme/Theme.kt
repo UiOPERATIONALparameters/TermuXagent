@@ -1,5 +1,6 @@
 package com.termuxagent.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -9,101 +10,98 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
-import android.os.Build
+import androidx.compose.ui.platform.LocalContext
 
-enum class ThemeMode { System, Light, Dark }
+enum class ThemeMode { System, Black, White }
 
 val LocalThemeMode = staticCompositionLocalOf { ThemeMode.System }
-val LocalDynamicColor = staticCompositionLocalOf { true }
 
-private val DarkColors = darkColorScheme(
-    primary = Cyan400,
-    onPrimary = Ink900,
-    primaryContainer = Ink600,
-    onPrimaryContainer = Cyan300,
-    secondary = Violet400,
-    onSecondary = Ink900,
-    secondaryContainer = Ink700,
-    onSecondaryContainer = Violet400,
-    tertiary = Amber400,
-    onTertiary = Ink900,
-    tertiaryContainer = Ink700,
-    onTertiaryContainer = Amber300,
-    background = Ink850,
-    onBackground = Paper100,
-    surface = Ink800,
-    onSurface = Paper100,
-    surfaceVariant = Ink700,
-    onSurfaceVariant = Paper300,
-    surfaceTint = Cyan400,
-    inverseSurface = Paper200,
-    inverseOnSurface = Ink900,
-    error = Rose400,
-    onError = Ink900,
-    errorContainer = Color(0xFF7F1D1D),
-    onErrorContainer = Rose400,
-    outline = Paper400,
-    outlineVariant = Ink500,
-    scrim = Ink900,
+private val InkColors = darkColorScheme(
+    primary = InkPrimary,
+    onPrimary = InkOnPrimary,
+    primaryContainer = InkSurfaceMax,
+    onPrimaryContainer = InkOnSurface,
+    secondary = InkSecondary,
+    onSecondary = InkOnPrimary,
+    secondaryContainer = InkSurfaceHi,
+    onSecondaryContainer = InkOnSurface,
+    tertiary = InkTertiary,
+    onTertiary = InkOnPrimary,
+    tertiaryContainer = InkSurfaceHi,
+    onTertiaryContainer = InkOnSurface,
+    background = InkBlack,
+    onBackground = InkOnBg,
+    surface = InkSurface,
+    onSurface = InkOnSurface,
+    surfaceVariant = InkSurfaceHi,
+    onSurfaceVariant = InkOnSurfaceV,
+    surfaceTint = InkOnSurface,
+    inverseSurface = PaperWhite,
+    inverseOnSurface = InkBlack,
+    error = StatusError,
+    onError = InkBlack,
+    errorContainer = Color(0xFF3D1010),
+    onErrorContainer = StatusError,
+    outline = InkBorder,
+    outlineVariant = InkBorderSoft,
+    scrim = InkBlack,
 )
 
-private val LightColors = lightColorScheme(
-    primary = Cyan600,
-    onPrimary = Color.White,
-    primaryContainer = Paper200,
-    onPrimaryContainer = Cyan600,
-    secondary = Violet400,
-    onSecondary = Color.White,
-    secondaryContainer = Paper200,
-    onSecondaryContainer = Color(0xFF5B21B6),
-    tertiary = Amber500,
-    onTertiary = Color.White,
-    tertiaryContainer = Paper200,
-    onTertiaryContainer = Color(0xFF92400E),
-    background = Paper50,
-    onBackground = InkTextDark,
-    surface = Color.White,
-    onSurface = InkTextDark,
-    surfaceVariant = Paper200,
-    onSurfaceVariant = InkTextSecondaryDark,
-    surfaceTint = Cyan600,
-    inverseSurface = Ink800,
-    inverseOnSurface = Paper100,
-    error = Color(0xFFDC2626),
-    onError = Color.White,
+private val PaperColors = lightColorScheme(
+    primary = PaperPrimary,
+    onPrimary = PaperOnPrimary,
+    primaryContainer = PaperSurfaceMax,
+    onPrimaryContainer = PaperOnSurface,
+    secondary = PaperSecondary,
+    onSecondary = PaperOnPrimary,
+    secondaryContainer = PaperSurfaceHi,
+    onSecondaryContainer = PaperOnSurface,
+    tertiary = PaperTertiary,
+    onTertiary = PaperOnPrimary,
+    tertiaryContainer = PaperSurfaceHi,
+    onTertiaryContainer = PaperOnSurface,
+    background = PaperWhite,
+    onBackground = PaperOnBg,
+    surface = PaperSurface,
+    onSurface = PaperOnSurface,
+    surfaceVariant = PaperSurfaceHi,
+    onSurfaceVariant = PaperOnSurfaceV,
+    surfaceTint = PaperOnSurface,
+    inverseSurface = InkBlack,
+    inverseOnSurface = PaperWhite,
+    error = StatusError,
+    onError = PaperWhite,
     errorContainer = Color(0xFFFEE2E2),
     onErrorContainer = Color(0xFF991B1B),
-    outline = Paper400,
-    outlineVariant = Paper300,
-    scrim = Ink900,
+    outline = PaperBorder,
+    outlineVariant = PaperBorderSoft,
+    scrim = InkBlack,
 )
 
 @Composable
 fun TermuXagentTheme(
     themeMode: ThemeMode = ThemeMode.System,
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val systemDark = isSystemInDarkTheme()
     val isDark = when (themeMode) {
         ThemeMode.System -> systemDark
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
+        ThemeMode.Black -> true
+        ThemeMode.White -> false
     }
     val context = LocalContext.current
     val colorScheme = when {
+        // Dynamic color takes precedence when explicitly enabled AND on Android 12+.
+        // Falls back to the e-ink palette otherwise.
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        isDark -> DarkColors
-        else -> LightColors
+        isDark -> InkColors
+        else -> PaperColors
     }
 
-    CompositionLocalProvider(
-        LocalThemeMode provides themeMode,
-        LocalDynamicColor provides dynamicColor
-    ) {
+    CompositionLocalProvider(LocalThemeMode provides themeMode) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = TermuXagentTypography,
@@ -111,3 +109,4 @@ fun TermuXagentTheme(
         )
     }
 }
+

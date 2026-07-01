@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -25,17 +26,17 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,9 +46,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.termuxagent.data.workspace.WorkspaceManager
 import com.termuxagent.ui.ViewModelFactories
@@ -65,50 +68,51 @@ fun WorkspaceScreen(
     val state by vm.state.collectAsState()
     var showNewDialog by remember { mutableStateOf<NewDialog?>(null) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            state.currentPath,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        if (state.currentPath != ".") vm.navigateUp()
-                    }, enabled = state.currentPath != ".") {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Up")
-                    }
-                    IconButton(onClick = { showNewDialog = NewDialog.File }) {
-                        Icon(Icons.Rounded.InsertDriveFile, contentDescription = "New file")
-                    }
-                    IconButton(onClick = { showNewDialog = NewDialog.Folder }) {
-                        Icon(Icons.Rounded.CreateNewFolder, contentDescription = "New folder")
-                    }
-                    IconButton(onClick = { vm.refresh() }) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+            }
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                Text(
+                    "Workspace",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
                 )
-            )
+                Text(
+                    state.currentPath,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            IconButton(onClick = {
+                if (state.currentPath != ".") vm.navigateUp()
+            }, enabled = state.currentPath != ".") {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Up", modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = { showNewDialog = NewDialog.File }) {
+                Icon(Icons.Rounded.InsertDriveFile, contentDescription = "New file")
+            }
+            IconButton(onClick = { showNewDialog = NewDialog.Folder }) {
+                Icon(Icons.Rounded.CreateNewFolder, contentDescription = "New folder")
+            }
+            IconButton(onClick = { vm.refresh() }) {
+                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+            }
         }
-    ) { inner ->
-        Box(modifier = Modifier.fillMaxSize().padding(inner)) {
+
+        Box(modifier = Modifier.fillMaxSize()) {
             if (state.entries.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -142,12 +146,16 @@ fun WorkspaceScreen(
                     }
                 }
             }
-
-            // Preview overlay
-            state.previewing?.let { target ->
-                PreviewSheet(target = target, onClose = { vm.closePreview() })
-            }
         }
+    }
+
+    // Editor overlay
+    state.editing?.let { target ->
+        FileEditorSheet(
+            target = target,
+            onClose = { vm.closeEditor() },
+            onSave = { content -> vm.saveContent(target.path, content) }
+        )
     }
 
     // New file/folder dialog
@@ -193,7 +201,7 @@ private fun EntryRow(
             Icon(
                 imageVector = if (entry.isDirectory) Icons.Rounded.Folder else Icons.Rounded.Description,
                 contentDescription = null,
-                tint = if (entry.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -202,7 +210,8 @@ private fun EntryRow(
             Text(
                 text = entry.name,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground
             )
             val sub = if (entry.isDirectory) "folder" else formatBytes(entry.size)
             Text(
@@ -218,45 +227,74 @@ private fun EntryRow(
 }
 
 @Composable
-private fun PreviewSheet(target: PreviewTarget, onClose: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onClose,
-        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (target is PreviewTarget.Directory) Icons.Rounded.Folder else Icons.Rounded.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.size(8.dp))
+private fun FileEditorSheet(
+    target: EditTarget,
+    onClose: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var content by remember(target.path) { mutableStateOf(target.initialContent) }
+    val isDir = target is EditTarget.Directory
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Editor top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+            }
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(
-                    text = target.path,
-                    style = MaterialTheme.typography.titleSmall,
+                    target.path.substringAfterLast('/'),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace
                 )
+                Text(
+                    if (isDir) "directory (read-only)" else "${formatBytes(target.let { (it as? EditTarget.TextFile)?.totalBytes ?: 0L })}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 480.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                when (target) {
-                    is PreviewTarget.TextFile -> Text(
-                        text = target.content,
-                        style = MonoTextStyle.copy(color = MaterialTheme.colorScheme.onSurface)
-                    )
-                    is PreviewTarget.Directory -> Text(
-                        text = target.tree,
-                        style = MonoTextStyle.copy(color = MaterialTheme.colorScheme.onSurface)
-                    )
+            if (!isDir) {
+                IconButton(onClick = { onSave(content) }) {
+                    Icon(Icons.Rounded.Save, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
-    )
+        // Content area
+        if (isDir) {
+            // Directory tree (read-only)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = content,
+                    style = MonoTextStyle.copy(color = MaterialTheme.colorScheme.onBackground)
+                )
+            }
+        } else {
+            OutlinedTextField(
+                value = content,
+                onValueChange = { content = it },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                textStyle = MonoTextStyle.copy(color = MaterialTheme.colorScheme.onBackground),
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+    }
 }
 
 @Composable

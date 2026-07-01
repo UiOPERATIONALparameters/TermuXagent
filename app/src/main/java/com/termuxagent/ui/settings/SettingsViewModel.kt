@@ -7,29 +7,70 @@ import com.termuxagent.data.api.OpenAIClient
 import com.termuxagent.data.settings.AppSettings
 import com.termuxagent.data.settings.SettingsStore
 import com.termuxagent.ui.theme.ThemeMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val testing: Boolean = false,
-    val testResult: String? = null
+    val testResult: String? = null,
+    val fetchingModels: Boolean = false,
+    val availableModels: List<String> = emptyList(),
+    val modelsError: String? = null
 )
 
 class SettingsViewModel(private val context: Context) : ViewModel() {
     private val _mutable = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _mutable.asStateFlow()
 
+    private var lastFetchedKey: String = ""
+    private var lastFetchedUrl: String = ""
+    private var fetchJob: Job? = null
+
     init {
         viewModelScope.launch {
             SettingsStore.flow(context).collect { s ->
                 _mutable.update { it.copy(settings = s) }
+                // Auto-fetch models when both key + URL are set and have changed.
+                maybeFetchModels(s.apiKey, s.baseUrl)
             }
+        }
+    }
+
+    private fun maybeFetchModels(apiKey: String, baseUrl: String) {
+        if (apiKey.isBlank() || baseUrl.isBlank()) return
+        if (apiKey == lastFetchedKey && baseUrl == lastFetchedUrl) return
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
+            delay(700) // debounce
+            lastFetchedKey = apiKey
+            lastFetchedUrl = baseUrl
+            _mutable.update { it.copy(fetchingModels = true, modelsError = null) }
+            val client = OpenAIClient(baseUrl = baseUrl, apiKey = apiKey)
+            val result = withContext(Dispatchers.IO) { client.listModels() }
+            result.fold(
+                onSuccess = { r ->
+                    val ids = r.data.map { it.id }.sorted()
+                    _mutable.update {
+                        it.copy(fetchingModels = false, availableModels = ids, modelsError = null)
+                    }
+                },
+                onFailure = { e ->
+                    _mutable.update {
+                        it.copy(
+                            fetchingModels = false,
+                            modelsError = e.message ?: e::class.simpleName
+                        )
+                    }
+                }
+            )
         }
     }
 
@@ -57,7 +98,8 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
         _mutable.update { it.copy(testing = true, testResult = null) }
         viewModelScope.launch {
             val client = OpenAIClient(baseUrl = s.baseUrl, apiKey = s.apiKey)
-            val result = client.listModels()
+            // MUST run on IO — OkHttp perform() does real network I/O.
+            val result = withContext(Dispatchers.IO) { client.listModels() }
             _mutable.update {
                 it.copy(
                     testing = false,

@@ -71,14 +71,14 @@ Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."
                 proc.destroyForcibly()
                 ToolResult(
                     ok = false,
-                    output = "$out\n[TIMEOUT after ${timeoutMs}ms — process killed]",
+                    output = stripAnsi(out.toString()) + "\n[TIMEOUT after ${timeoutMs}ms — process killed]",
                     meta = mapOf("command" to command, "exit" to "-1")
                 )
             } else {
                 val exit = proc.exitValue()
                 ToolResult(
                     ok = exit == 0,
-                    output = "$out\n[exit code: $exit]".trim(),
+                    output = stripAnsi("$out\n[exit code: $exit]".trim()),
                     meta = mapOf("command" to command, "exit" to exit.toString())
                 )
             }
@@ -86,4 +86,9 @@ Returns combined stdout+stderr and the exit code. Output is truncated to ~20KB."
             ToolResult(false, "Failed to execute: ${e.message}", meta = mapOf("command" to command))
         }
     }
+
+    /** Strip ANSI escape sequences (colors, cursor moves) for clean display. */
+    private fun stripAnsi(s: String): String =
+        s.replace(Regex("\u001B\\[[0-9;]*[ -/]*[@-~]"), "")
+         .replace("\r", "")
 }

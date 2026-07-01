@@ -1,12 +1,16 @@
 package com.termuxagent.data.agent
 
 import com.termuxagent.data.agent.tools.AgentTool
+import com.termuxagent.data.agent.tools.CopyClipboardTool
+import com.termuxagent.data.agent.tools.OpenUrlTool
+import com.termuxagent.data.agent.tools.ShareFileTool
 import com.termuxagent.data.agent.tools.DeleteTool
 import com.termuxagent.data.agent.tools.EditFileTool
 import com.termuxagent.data.agent.tools.AppendFileTool
 import com.termuxagent.data.agent.tools.GrepTool
 import com.termuxagent.data.agent.tools.HttpFetchTool
 import com.termuxagent.data.agent.tools.ListDirTool
+import com.termuxagent.data.agent.tools.ListInterpretersTool
 import com.termuxagent.data.agent.tools.MkdirTool
 import com.termuxagent.data.agent.tools.ReadFileTool
 import com.termuxagent.data.agent.tools.ShellTool
@@ -36,7 +40,11 @@ class ToolRegistry(ws: WorkspaceManager) {
         GrepTool(ws),
         MkdirTool(ws),
         DeleteTool(ws),
-        HttpFetchTool()
+        HttpFetchTool(),
+        ListInterpretersTool(),
+        CopyClipboardTool(),
+        ShareFileTool(ws),
+        OpenUrlTool()
     )
 
     private val byName: Map<String, AgentTool> = tools.associateBy { it.name }

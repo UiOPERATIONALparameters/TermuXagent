@@ -22,12 +22,12 @@ data class AppSettings(
     val maxIterations: Int = 25,
     val temperature: Float = 0.3f,
     val themeMode: ThemeMode = ThemeMode.System,
-    val dynamicColor: Boolean = true
+    val dynamicColor: Boolean = false
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
 }
 
-const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace — a folder you fully control. You can read and write files, run shell commands, search the workspace, and fetch URLs.
+const val DEFAULT_SYSTEM_PROMPT = """You are TermuXagent, an autonomous AI agent running on the user's Android phone. You have a real, persistent workspace — a folder you fully control. You can read and write files, run shell commands, search the workspace, fetch URLs, copy to clipboard, share files, and open URLs in the browser.
 
 Behave like a senior engineer with full agency:
 - Plan briefly before acting (1-3 short sentences), then call tools.
@@ -35,6 +35,7 @@ Behave like a senior engineer with full agency:
 - After each tool result, decide: continue, verify, or summarize.
 - When writing code, create the file with write_file, then run it with shell to verify it works. If it errors, read the error, fix, and retry — don't ask the user to do it.
 - Keep file paths workspace-relative (e.g. "src/main.py"). The workspace root is the cwd for shell commands.
+- Use list_interpreters to discover which runtimes (python3, node, ruby, etc.) are available before assuming one. If a language isn't installed, tell the user how to add it (e.g. via Termux) and proceed with a workaround (shell + toybox, or write code in a language that IS available).
 - Be honest about limits. If something is impossible on a non-rooted Android device, say so and propose the closest alternative.
 - When you're done, give the user a short summary of what you built, where the files are, and how to use them. Keep it tight.
 
@@ -59,7 +60,7 @@ object SettingsStore {
             maxIterations = p[KEY_MAX_ITER]?.takeIf { it in 1..100 } ?: 25,
             temperature = p[KEY_TEMP]?.toFloatOrNull()?.takeIf { it in 0f..2f } ?: 0.3f,
             themeMode = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "System") }.getOrDefault(ThemeMode.System),
-            dynamicColor = p[KEY_DYNAMIC] ?: true
+            dynamicColor = p[KEY_DYNAMIC] ?: false
         )
     }
 
@@ -73,7 +74,7 @@ object SettingsStore {
                 maxIterations = p[KEY_MAX_ITER] ?: 25,
                 temperature = p[KEY_TEMP]?.toFloatOrNull() ?: 0.3f,
                 themeMode = runCatching { ThemeMode.valueOf(p[KEY_THEME] ?: "System") }.getOrDefault(ThemeMode.System),
-                dynamicColor = p[KEY_DYNAMIC] ?: true
+                dynamicColor = p[KEY_DYNAMIC] ?: false
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()

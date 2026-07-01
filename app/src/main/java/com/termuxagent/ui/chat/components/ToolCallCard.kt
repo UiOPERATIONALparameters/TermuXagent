@@ -8,7 +8,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.sp
 import com.termuxagent.data.chat.AssistantBlock
 import com.termuxagent.data.chat.ToolCallStatus
 import com.termuxagent.ui.theme.MonoTextStyle
+import com.termuxagent.ui.theme.StatusError
+import com.termuxagent.ui.theme.StatusSuccess
+import com.termuxagent.ui.theme.StatusWarn
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
@@ -55,9 +58,9 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
     var expanded by remember(block.id) { mutableStateOf(false) }
 
     val statusColor = when (block.status) {
-        ToolCallStatus.STREAMING, ToolCallStatus.RUNNING -> MaterialTheme.colorScheme.tertiary
-        ToolCallStatus.DONE -> MaterialTheme.colorScheme.primary
-        ToolCallStatus.FAILED -> MaterialTheme.colorScheme.error
+        ToolCallStatus.STREAMING, ToolCallStatus.RUNNING -> StatusWarn
+        ToolCallStatus.DONE -> StatusSuccess
+        ToolCallStatus.FAILED -> StatusError
     }
     val statusLabel = when (block.status) {
         ToolCallStatus.STREAMING -> "preparing"
@@ -73,11 +76,11 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -86,9 +89,9 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(statusColor.copy(alpha = 0.15f)),
+                        .background(statusColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -98,7 +101,7 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = block.name,
@@ -121,18 +124,17 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
                 )
             }
             if (block.argsRaw.isNotBlank()) {
-                Spacer(Modifier.size(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                        .padding(8.dp)
+                Spacer(Modifier.size(10.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 ) {
                     Text(
-                        text = prettifyArgs(block.argsRaw).take(300) + if (block.argsRaw.length > 300) "…" else "",
+                        text = prettifyArgs(block.argsRaw).take(400) + if (block.argsRaw.length > 400) "…" else "",
                         style = MonoTextStyle.copy(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
-                        maxLines = 3
+                        modifier = Modifier.padding(10.dp),
+                        maxLines = 4
                     )
                 }
             }
@@ -141,25 +143,26 @@ fun ToolCallCard(block: AssistantBlock.ToolCall, modifier: Modifier = Modifier) 
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
+                Column(modifier = Modifier.padding(top = 10.dp)) {
                     Text(
                         text = "Output",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.size(4.dp))
-                    Box(
+                    Spacer(Modifier.size(6.dp))
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 360.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(10.dp)
+                            .heightIn(max = 400.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                     ) {
                         Text(
                             text = block.result.orEmpty(),
                             style = MonoTextStyle.copy(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
-                            modifier = Modifier.verticalScroll(rememberScrollState())
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState())
                         )
                     }
                 }
@@ -173,9 +176,9 @@ private fun prettifyArgs(raw: String): String {
     return runCatching {
         val el = Json.parseToJsonElement(raw)
         val obj = el as? JsonObject ?: return raw
-        obj.entries.joinToString(", ") { (k, v) ->
+        obj.entries.joinToString("\n") { (k, v) ->
             val s = v.toString().trim('"')
-            "$k=$s"
+            "  $k = $s"
         }
     }.getOrDefault(raw)
 }

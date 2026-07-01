@@ -8,9 +8,9 @@
     <string name="nav_settings">Settings</string>
 
     <!-- Chat -->
-    <string name="chat_placeholder">Ask, build, or run anything…</string>
+    <string name="chat_placeholder">Ask anything…</string>
     <string name="chat_empty_title">TermuXagent</string>
-    <string name="chat_empty_subtitle">Give your AI a real workspace. It can read &amp; write files, run shell commands, fetch URLs, and iterate until done.</string>
+    <string name="chat_empty_subtitle">Give your AI a real workspace. It can read &amp; write files, run shell commands, fetch URLs, share files, and iterate until done.</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_send">Send</string>
     <string name="chat_new">New chat</string>

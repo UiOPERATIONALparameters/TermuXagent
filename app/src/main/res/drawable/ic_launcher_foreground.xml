@@ -3,17 +3,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Stylized ">_" terminal prompt with a sparkle, in a soft glow -->
+    <!-- Pure white ">_" terminal prompt — clean e-ink mark -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M30,36 L46,54 L30,72 L36,72 L52,54 L36,36 Z" />
+        android:pathData="M30,38 L44,54 L30,70 L37,70 L51,54 L37,38 Z" />
     <path
-        android:fillColor="#7DD3FC"
-        android:pathData="M58,68 L82,68 L82,74 L58,74 Z" />
-    <path
-        android:fillColor="#FBBF24"
-        android:pathData="M64,30 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
-    <path
-        android:fillColor="#FBBF24"
-        android:pathData="M70,26 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,66 L81,66 L81,71 L57,71 Z" />
 </vector>
