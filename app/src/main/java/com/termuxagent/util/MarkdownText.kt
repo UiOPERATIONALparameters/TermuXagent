@@ -261,24 +261,55 @@ private class CollectingVisitor : AbstractVisitor() {
         }
     }
 
-    override fun visit(blockQuote: BlockQuote) {
-        inlineBuilder.reset()
-        visitChildren(blockQuote)
-        blocks.add(MdBlock.Quote(inlineBuilder.build()))
-    }
-
     override fun visit(thematicBreak: ThematicBreak) {
         blocks.add(MdBlock.HRule)
     }
 
-    // Handle GFM table nodes — AbstractVisitor doesn't have visit(TableBlock)
-    // so we check the node type in the generic visit method
-    override fun visit(node: org.commonmark.node.Node) {
-        if (node is org.commonmark.ext.gfm.tables.TableBlock) {
-            visitTableBlock(node)
-        } else {
-            super.visit(node)
+    // GFM tables: AbstractVisitor doesn't have a visit(TableBlock) override.
+    // We intercept at the Document level and walk children manually for table nodes.
+    override fun visit(document: Document) {
+        var child = document.firstChild
+        while (child != null) {
+            if (child is org.commonmark.ext.gfm.tables.TableBlock) {
+                visitTableBlock(child)
+            } else {
+                child.accept(this)
+            }
+            child = child.next
         }
+    }
+
+    // Also handle tables nested in other blocks (e.g., blockquotes)
+    override fun visit(blockQuote: BlockQuote) {
+        // Check if any direct child is a table
+        var child = blockQuote.firstChild
+        val hasTable = child?.let { hasTableInTree(it) } ?: false
+        if (hasTable) {
+            // Process children manually
+            var c = blockQuote.firstChild
+            while (c != null) {
+                if (c is org.commonmark.ext.gfm.tables.TableBlock) {
+                    visitTableBlock(c)
+                } else {
+                    c.accept(this)
+                }
+                c = c.next
+            }
+        } else {
+            inlineBuilder.reset()
+            visitChildren(blockQuote)
+            blocks.add(MdBlock.Quote(inlineBuilder.build()))
+        }
+    }
+
+    private fun hasTableInTree(node: org.commonmark.node.Node): Boolean {
+        var n: org.commonmark.node.Node? = node
+        while (n != null) {
+            if (n is org.commonmark.ext.gfm.tables.TableBlock) return true
+            if (n.firstChild != null && hasTableInTree(n.firstChild!!)) return true
+            n = n.next
+        }
+        return false
     }
 
     private fun visitTableBlock(node: org.commonmark.ext.gfm.tables.TableBlock) {
