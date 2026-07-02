@@ -127,7 +127,8 @@ class CodespacesHelper(private val githubToken: String) {
 
         // Wait for the codespace to be Available (max 60 seconds)
         var waitCount = 0
-        while (waitCount < 30) {
+        var isAvailable = false
+        while (waitCount < 30 && !isAvailable) {
             Thread.sleep(2000)
             val checkReq = Request.Builder()
                 .url("https://api.github.com/user/codespaces/$codespaceName")
@@ -140,7 +141,7 @@ class CodespacesHelper(private val githubToken: String) {
                     val body = resp.body?.string() ?: ""
                     val json = JSONObject(body)
                     val state = json.optString("state")
-                    if (state == "Available") break
+                    if (state == "Available") isAvailable = true
                 }
             }
             waitCount++
