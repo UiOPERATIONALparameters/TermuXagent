@@ -116,7 +116,7 @@ class CodespacesHelper(private val githubToken: String) {
             }
         }
 
-        // Step 5: Make sure the codespace is running
+        // Step 5: Make sure the codespace is running. Poll until Available.
         val startReq = Request.Builder()
             .url("https://api.github.com/user/codespaces/$codespaceName/start")
             .header("Authorization", "token $githubToken")
@@ -124,6 +124,27 @@ class CodespacesHelper(private val githubToken: String) {
             .post("{}".toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(startReq).execute().close()
+
+        // Wait for the codespace to be Available (max 60 seconds)
+        var waitCount = 0
+        while (waitCount < 30) {
+            Thread.sleep(2000)
+            val checkReq = Request.Builder()
+                .url("https://api.github.com/user/codespaces/$codespaceName")
+                .header("Authorization", "token $githubToken")
+                .header("Accept", "application/vnd.github+json")
+                .get()
+                .build()
+            client.newCall(checkReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val json = JSONObject(body)
+                    val state = json.optString("state")
+                    if (state == "Available") break
+                }
+            }
+            waitCount++
+        }
 
         // Step 6: Return connection details
         // GitHub Codespaces SSH: user=codespace_name, host=ssh.github.com, port=443
@@ -133,7 +154,7 @@ class CodespacesHelper(private val githubToken: String) {
             sshPort = 443,
             sshUser = codespaceName,
             privateKey = privateKeyStr,
-            message = "SSH key added to GitHub. Connecting to codespace $codespaceName via ssh.github.com:443"
+            message = "SSH key added to GitHub. Codespace is running. Connect via ssh.github.com:443."
         )
     }
 }

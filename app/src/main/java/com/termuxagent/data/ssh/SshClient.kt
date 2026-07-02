@@ -25,6 +25,7 @@ class SshClient(
 ) : AutoCloseable {
 
     private var session: Session? = null
+    private var lastError: String = ""
 
     fun connect(): Boolean {
         return try {
@@ -44,15 +45,28 @@ class SshClient(
 
             session.setConfig("StrictHostKeyChecking", "no")
             session.setConfig("PreferredAuthentications", "publickey,password")
-            session.connect(15000)
+
+            // GitHub's SSH server requires modern algorithms. Configure JSch
+            // to use the ones GitHub supports.
+            session.setConfig("kex", "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512")
+            session.setConfig("server_host_key", "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa")
+            session.setConfig("cipher.s2c", "chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com")
+            session.setConfig("cipher.c2s", "chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com")
+            session.setConfig("mac.s2c", "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512")
+            session.setConfig("mac.c2s", "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512")
+
+            session.connect(30000)
             this.session = session
             true
         } catch (e: Exception) {
+            lastError = e.message ?: e::class.simpleName ?: "unknown error"
             false
         }
     }
 
     fun isConnected(): Boolean = session?.isConnected == true
+
+    fun getLastError(): String = lastError
 
     data class Result(
         val exitCode: Int,
@@ -61,9 +75,11 @@ class SshClient(
     )
 
     fun execute(command: String, timeoutMs: Int = 30_000): Result {
-        val session = this.session ?: return Result(-1, "", "Not connected")
+        val session = this.session ?: return Result(-1, "", "Not connected: $lastError")
         if (!session.isConnected) {
-            connect()
+            if (!connect()) {
+                return Result(-1, "", "Reconnect failed: $lastError")
+            }
         }
 
         val fullCommand = if (workingDir.isNotBlank()) {

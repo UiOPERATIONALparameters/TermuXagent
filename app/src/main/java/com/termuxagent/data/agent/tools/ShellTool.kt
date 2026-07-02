@@ -53,12 +53,14 @@ Returns combined stdout+stderr + exit code. Output truncated to ~20KB."""
             port = settings.sshPort,
             user = settings.sshUser,
             password = settings.sshPassword,
+            privateKey = settings.sshPrivateKey,
             workingDir = settings.sshWorkingDir
         )
         if (!ssh.connect()) {
+            val err = ssh.getLastError()
             return ToolResult(
                 false,
-                "SSH connection failed to ${settings.sshUser}@${settings.sshHost}:${settings.sshPort}. Check credentials in Settings.",
+                "SSH connection failed to ${settings.sshUser}@${settings.sshHost}:${settings.sshPort}. Error: $err\n\nTroubleshooting:\n- For GitHub Codespaces: make sure the codespace is running. The SSH key must be added to your GitHub account (token needs admin:public_key scope).\n- For VPS: check host, port, username, password.\n- Go to Settings → Cloud Linux → Test SSH to verify.",
                 meta = mapOf("command" to command, "env" to "ssh", "exit" to "-1")
             )
         }

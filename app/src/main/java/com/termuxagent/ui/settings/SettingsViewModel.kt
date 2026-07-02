@@ -269,7 +269,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
             _mutable.update { it.copy(testResult = "Enter your GitHub token first.") }
             return
         }
-        _mutable.update { it.copy(testing = true, testResult = "Setting up Codespaces…") }
+        _mutable.update { it.copy(testing = true, testResult = "Setting up Codespaces (this takes ~30s to start the codespace)…") }
         codespacesJob?.cancel()
         codespacesJob = viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -298,7 +298,24 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                                 )
                             )
                         }
-                        setup.message
+                        // Now test the SSH connection to verify it works
+                        val ssh = com.termuxagent.data.ssh.SshClient(
+                            host = setup.sshHost,
+                            port = setup.sshPort,
+                            user = setup.sshUser,
+                            privateKey = setup.privateKey
+                        )
+                        if (ssh.connect()) {
+                            val testResult = ssh.execute("uname -a && whoami && pwd", 15000)
+                            ssh.close()
+                            if (testResult.exitCode == 0) {
+                                "✓ Connected! Linux: ${testResult.output.take(150)}"
+                            } else {
+                                "SSH connected but test command failed: ${testResult.error.take(200)}"
+                            }
+                        } else {
+                            "SSH key added and codespace started, but SSH connection failed: ${ssh.getLastError()}. Try 'Test SSH' in a few seconds — the codespace may still be booting."
+                        }
                     } else {
                         "Setup failed: ${setup.message}"
                     }
