@@ -307,6 +307,21 @@ fun SettingsScreen(
             item { SectionTitle("Agent") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Fast mode", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
+                            Text(
+                                "Quicker responses. Caps output at 1500 tokens. Good for simple Q&A.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = s.fastMode, onCheckedChange = vm::setFastMode)
+                    }
                     OutlinedTextField(
                         value = e.systemPrompt,
                         onValueChange = vm::setSystemPrompt,
@@ -433,13 +448,13 @@ fun SettingsScreen(
                                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            val codespaces = remember { mutableStateOf<List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>?>(null) }
+                            val codespaces by vm.codespacesList.collectAsState()
                             androidx.compose.material3.TextButton(onClick = {
-                                codespaces.value = vm.listCodespaces()
+                                vm.listCodespaces()
                             }) {
                                 Text("List my codespaces")
                             }
-                            codespaces.value?.let { list ->
+                            codespaces?.let { list ->
                                 if (list.isEmpty()) {
                                     Text("No codespaces found. Create one at github.com/codespaces.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 } else {

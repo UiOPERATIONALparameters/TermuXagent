@@ -98,7 +98,8 @@ class Agent(
                     temperature = settings.temperature.toDouble(),
                     stream = true,
                     tools = toolDefs,
-                    toolChoice = "auto"
+                    toolChoice = "auto",
+                    maxTokens = if (settings.fastMode) 1500 else null
                 )
 
                 // Accumulators for the streaming assistant turn.

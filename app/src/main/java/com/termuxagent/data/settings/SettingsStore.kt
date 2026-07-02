@@ -42,7 +42,8 @@ data class AppSettings(
     val toolWeb: Boolean = true,
     val toolAndroid: Boolean = true,
     val toolSsh: Boolean = true,
-    val casualMode: Boolean = false
+    val casualMode: Boolean = false,
+    val fastMode: Boolean = false
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
     val isSshConfigured: Boolean get() = sshHost.isNotBlank() && sshUser.isNotBlank() && (sshPassword.isNotBlank() || sshPrivateKey.isNotBlank())
@@ -110,6 +111,7 @@ object SettingsStore {
     private val KEY_TOOL_ANDROID = booleanPreferencesKey("tool_android")
     private val KEY_TOOL_SSH = booleanPreferencesKey("tool_ssh")
     private val KEY_CASUAL_MODE = booleanPreferencesKey("casual_mode")
+    private val KEY_FAST_MODE = booleanPreferencesKey("fast_mode")
 
     fun flow(context: Context): Flow<AppSettings> = context.settingsDataStore.data.map { p ->
         AppSettings(
@@ -139,7 +141,8 @@ object SettingsStore {
             toolWeb = p[KEY_TOOL_WEB] ?: true,
             toolAndroid = p[KEY_TOOL_ANDROID] ?: true,
             toolSsh = p[KEY_TOOL_SSH] ?: true,
-            casualMode = p[KEY_CASUAL_MODE] ?: false
+            casualMode = p[KEY_CASUAL_MODE] ?: false,
+            fastMode = p[KEY_FAST_MODE] ?: false
         )
     }
 
@@ -172,7 +175,8 @@ object SettingsStore {
                 toolWeb = p[KEY_TOOL_WEB] ?: true,
                 toolAndroid = p[KEY_TOOL_ANDROID] ?: true,
                 toolSsh = p[KEY_TOOL_SSH] ?: true,
-                casualMode = p[KEY_CASUAL_MODE] ?: false
+                casualMode = p[KEY_CASUAL_MODE] ?: false,
+                fastMode = p[KEY_FAST_MODE] ?: false
             )
             val next = transform(current)
             p[KEY_API_KEY] = next.apiKey.trim()
@@ -202,6 +206,7 @@ object SettingsStore {
             p[KEY_TOOL_ANDROID] = next.toolAndroid
             p[KEY_TOOL_SSH] = next.toolSsh
             p[KEY_CASUAL_MODE] = next.casualMode
+            p[KEY_FAST_MODE] = next.fastMode
         }
     }
 }

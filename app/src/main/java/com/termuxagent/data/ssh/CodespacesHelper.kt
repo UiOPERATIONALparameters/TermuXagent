@@ -103,7 +103,15 @@ class CodespacesHelper(private val githubToken: String) {
                 val errBody = resp.body?.string()?.take(300) ?: ""
                 // If key already exists, that's OK — continue
                 if (!errBody.contains("already") && resp.code != 422) {
-                    return SetupResult(false, message = "Failed to add SSH key to GitHub: HTTP ${resp.code}")
+                    // Most likely the token lacks admin:public_key scope
+                    return SetupResult(
+                        success = false,
+                        message = if (resp.code == 404 || resp.code == 403) {
+                            "Your GitHub token needs the 'admin:public_key' scope to add SSH keys. Go to github.com/settings/tokens, edit your token, check 'admin:public_key', save, then paste the new token here."
+                        } else {
+                            "Failed to add SSH key to GitHub: HTTP ${resp.code}: $errBody"
+                        }
+                    )
                 }
             }
         }

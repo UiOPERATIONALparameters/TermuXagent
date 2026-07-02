@@ -159,6 +159,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     fun setSshEnabled(v: Boolean) = updateImmediate { it.copy(sshEnabled = v) }
     fun setSshPort(v: Int) = updateImmediate { it.copy(sshPort = v) }
     fun setCasualMode(v: Boolean) = updateImmediate { it.copy(casualMode = v) }
+    fun setFastMode(v: Boolean) = updateImmediate { it.copy(fastMode = v) }
     fun setToolShell(v: Boolean) = updateImmediate { it.copy(toolShell = v) }
     fun setToolFiles(v: Boolean) = updateImmediate { it.copy(toolFiles = v) }
     fun setToolWeb(v: Boolean) = updateImmediate { it.copy(toolWeb = v) }
@@ -224,9 +225,44 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    // ── GitHub Codespaces quick setup ──────────────────────────────────────────
+    // ── GitHub Codespaces ────────────────────────────────────────────────────
+
+    private val _codespacesList = MutableStateFlow<List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>?>(null)
+    val codespacesList: StateFlow<List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>?> = _codespacesList.asStateFlow()
 
     private var codespacesJob: Job? = null
+    fun listCodespaces() {
+        val token = _mutable.value.editing.githubToken
+        if (token.isBlank()) {
+            _mutable.update { it.copy(testResult = "Enter your GitHub token first.") }
+            return
+        }
+        _mutable.update { it.copy(testing = true, testResult = "Fetching codespaces…") }
+        _codespacesList.value = null
+        codespacesJob?.cancel()
+        codespacesJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val helper = com.termuxagent.data.ssh.CodespacesHelper(token)
+                    helper.listCodespaces()
+                }
+            }
+            val list = result.getOrNull()
+            _codespacesList.value = list
+            _mutable.update {
+                it.copy(
+                    testing = false,
+                    testResult = if (list != null) {
+                        if (list.isEmpty()) "No codespaces found. Create one at github.com/codespaces"
+                        else "Found ${list.size} codespace(s). Tap one to connect."
+                    } else {
+                        "Failed: ${result.exceptionOrNull()?.message ?: "check token"}"
+                    }
+                )
+            }
+        }
+    }
+
     fun setupCodespaces(codespaceName: String) {
         val token = _mutable.value.editing.githubToken
         if (token.isBlank()) {
@@ -242,7 +278,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                     val setup = helper.setup(codespaceName)
                     if (setup.success) {
                         // Save the SSH settings + private key
-                        updateImmediate {
+                        SettingsStore.update(context) {
                             it.copy(
                                 sshEnabled = true,
                                 sshHost = setup.sshHost,
@@ -266,18 +302,11 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                     } else {
                         "Setup failed: ${setup.message}"
                     }
-                }.getOrElse { err -> "Error: ${err.message}" }
+                }
             }
-            _mutable.update { it.copy(testing = false, testResult = result) }
+            val msg = result.getOrNull() ?: "Error: ${result.exceptionOrNull()?.message}"
+            _mutable.update { it.copy(testing = false, testResult = msg) }
         }
-    }
-
-    fun listCodespaces(): List<com.termuxagent.data.ssh.CodespacesHelper.CodespaceInfo>? {
-        val token = _mutable.value.editing.githubToken
-        if (token.isBlank()) return null
-        return runCatching {
-            com.termuxagent.data.ssh.CodespacesHelper(token).listCodespaces()
-        }.getOrNull()
     }
 
     private fun updateImmediate(transform: (AppSettings) -> AppSettings) {
