@@ -13,12 +13,16 @@ import java.util.concurrent.TimeUnit
  * Helper to set up SSH access to GitHub Codespaces.
  *
  * Flow:
- * 1. Generate an RSA key pair in-app.
- * 2. Upload the public key to GitHub via the API (/user/keys).
- * 3. SSH into the codespace via ssh.github.com:443 using key auth.
- *    The username is the codespace name (e.g., "literate-disco-r745v5j5ggvr35xw").
+ * 1. Clean up any old "TermuXagent" SSH keys on GitHub (avoid duplicates).
+ * 2. Generate an ED25519 key pair in-app (GitHub's preferred key type).
+ * 3. Upload the public key to GitHub via the API (/user/keys).
+ * 4. Start the codespace and wait until it's "Available".
+ * 5. Wait 5s for SSH key propagation across GitHub's servers.
+ * 6. SSH into the codespace via ssh.github.com:443 using key auth.
+ *    The username is the codespace name.
  *
- * This avoids needing the `gh` CLI — we do everything via REST API + JSch.
+ * ED25519 is used instead of RSA because GitHub's Codespaces SSH server
+ * has better compatibility with ED25519 keys.
  */
 class CodespacesHelper(private val githubToken: String) {
 
@@ -71,27 +75,40 @@ class CodespacesHelper(private val githubToken: String) {
     }
 
     /**
-     * Full setup: generate key, upload to GitHub, return SSH connection details.
-     * The app then stores these and uses them to connect.
+     * Full setup: clean old keys, generate ED25519 key, upload to GitHub,
+     * start codespace, wait for propagation, return SSH connection details.
      */
     fun setup(codespaceName: String): SetupResult {
-        // Step 1: Generate RSA key pair
+        // Step 1: Clean up old TermuXagent keys to avoid duplicates
+        cleanupOldKeys()
+
+        // Step 2: Generate ED25519 key pair (GitHub's preferred type)
         val jsch = JSch()
-        val keyPair = KeyPair.genKeyPair(jsch, KeyPair.RSA, 2048)
+        val keyPair = try {
+            KeyPair.genKeyPair(jsch, KeyPair.ED25519)
+        } catch (e: Exception) {
+            // Fallback to RSA if ED25519 fails
+            try {
+                KeyPair.genKeyPair(jsch, KeyPair.RSA, 4096)
+            } catch (e2: Exception) {
+                return SetupResult(false, message = "Failed to generate SSH key: ${e2.message}")
+            }
+        }
 
-        // Step 2: Get public key in OpenSSH format
-        val publicKey = keyPair.getPublicKeyBlob()
-        val publicKeyStr = "ssh-rsa " + java.util.Base64.getEncoder().encodeToString(publicKey) + " termuxagent"
+        // Step 3: Get public key in OpenSSH format
+        val publicKeyOut = java.io.ByteArrayOutputStream()
+        keyPair.writePublicKey(publicKeyOut, "termuxagent")
+        val publicKeyStr = publicKeyOut.toString().trim()
 
-        // Step 3: Get private key as a string
+        // Step 4: Get private key as a string
         val privateKeyOut = java.io.ByteArrayOutputStream()
         keyPair.writePrivateKey(privateKeyOut)
         val privateKeyStr = privateKeyOut.toString()
 
         keyPair.dispose()
 
-        // Step 4: Upload public key to GitHub
-        val addKeyBody = """{"title":"TermuXagent","key":"${publicKeyStr.replace("\\", "\\\\").replace("\"", "\\\"")}"}"""
+        // Step 5: Upload public key to GitHub
+        val addKeyBody = """{"title":"TermuXagent","key":"${publicKeyStr.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")}"}"""
         val addKeyReq = Request.Builder()
             .url("https://api.github.com/user/keys")
             .header("Authorization", "token $githubToken")
@@ -101,13 +118,11 @@ class CodespacesHelper(private val githubToken: String) {
         client.newCall(addKeyReq).execute().use { resp ->
             if (!resp.isSuccessful) {
                 val errBody = resp.body?.string()?.take(300) ?: ""
-                // If key already exists, that's OK — continue
                 if (!errBody.contains("already") && resp.code != 422) {
-                    // Most likely the token lacks admin:public_key scope
                     return SetupResult(
                         success = false,
                         message = if (resp.code == 404 || resp.code == 403) {
-                            "Your GitHub token needs the 'admin:public_key' scope to add SSH keys. Go to github.com/settings/tokens, edit your token, check 'admin:public_key', save, then paste the new token here."
+                            "Your GitHub token needs 'admin:public_key' scope. Go to github.com/settings/tokens, edit your token, check 'admin:public_key', save, then paste the new token."
                         } else {
                             "Failed to add SSH key to GitHub: HTTP ${resp.code}: $errBody"
                         }
@@ -116,7 +131,7 @@ class CodespacesHelper(private val githubToken: String) {
             }
         }
 
-        // Step 5: Make sure the codespace is running. Poll until Available.
+        // Step 6: Start the codespace
         val startReq = Request.Builder()
             .url("https://api.github.com/user/codespaces/$codespaceName/start")
             .header("Authorization", "token $githubToken")
@@ -125,7 +140,7 @@ class CodespacesHelper(private val githubToken: String) {
             .build()
         client.newCall(startReq).execute().close()
 
-        // Wait for the codespace to be Available (max 60 seconds)
+        // Step 7: Wait for the codespace to be Available (max 60 seconds)
         var waitCount = 0
         var isAvailable = false
         while (waitCount < 30 && !isAvailable) {
@@ -147,15 +162,45 @@ class CodespacesHelper(private val githubToken: String) {
             waitCount++
         }
 
-        // Step 6: Return connection details
-        // GitHub Codespaces SSH: user=codespace_name, host=ssh.github.com, port=443
+        // Step 8: Wait for SSH key propagation (GitHub needs a few seconds)
+        Thread.sleep(5000)
+
+        // Step 9: Return connection details
         return SetupResult(
             success = true,
             sshHost = "ssh.github.com",
             sshPort = 443,
             sshUser = codespaceName,
             privateKey = privateKeyStr,
-            message = "SSH key added to GitHub. Codespace is running. Connect via ssh.github.com:443."
+            message = "ED25519 SSH key added. Codespace is running. Ready to connect."
         )
+    }
+
+    /** Remove all SSH keys titled "TermuXagent" from the user's GitHub account. */
+    private fun cleanupOldKeys() {
+        val listReq = Request.Builder()
+            .url("https://api.github.com/user/keys")
+            .header("Authorization", "token $githubToken")
+            .header("Accept", "application/vnd.github+json")
+            .get()
+            .build()
+        client.newCall(listReq).execute().use { resp ->
+            if (!resp.isSuccessful) return
+            val body = resp.body?.string() ?: return
+            val arr = JSONObject("{\"list\":$body}").optJSONArray("list") ?: return
+            for (i in 0 until arr.length()) {
+                val key = arr.getJSONObject(i)
+                if (key.optString("title") == "TermuXagent") {
+                    val keyId = key.optInt("id")
+                    val delReq = Request.Builder()
+                        .url("https://api.github.com/user/keys/$keyId")
+                        .header("Authorization", "token $githubToken")
+                        .header("Accept", "application/vnd.github+json")
+                        .delete()
+                        .build()
+                    client.newCall(delReq).execute().close()
+                }
+            }
+        }
     }
 }
